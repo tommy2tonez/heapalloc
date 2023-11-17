@@ -177,7 +177,7 @@ namespace dg::datastructure::boolvector::utility{
     template <class RS_Type = bucket_type>
     static inline constexpr auto false_toggle(size_t offset) -> RS_Type{
 
-        return std::numeric_limits<RS_Type>::max() ^ true_toggle<RS_Type>(offset);
+        return std::numeric_limits<RS_Type>::max() ^ true_toggle<RS_Type>(offset); //REVIEW only unsigned
 
     }
 

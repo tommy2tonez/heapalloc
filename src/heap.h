@@ -29,8 +29,8 @@
 
 namespace dg::heap::limits{
 
-    static inline const auto MIN_HEAP_HEIGHT         = uint8_t{10};
-    static inline const auto MAX_HEAP_HEIGHT         = uint8_t{15};
+    static inline const auto MIN_HEAP_HEIGHT         = uint8_t{11};
+    static inline const auto MAX_HEAP_HEIGHT         = uint8_t{11};
     static inline const auto EXCL_MAX_HEAP_HEIGHT    = uint8_t{MAX_HEAP_HEIGHT + 1};
 
 };
@@ -264,47 +264,6 @@ namespace dg::heap::market{
 
     };
     
-};
-
-namespace dg::heap::broadcaster{
-
-    class Broadcastable{
-
-        public:
-
-            virtual ~Broadcastable(){}
-            virtual void notify() noexcept = 0;
-
-    };
-    
-    class NoExceptObservable{
-
-        public:
-
-            virtual ~NoExceptObservable(){}
-            virtual void sync() noexcept = 0;
-
-    };
-
-    template <class T>
-    class NoExceptCRTPObservable{
-
-        public:
-
-            void sync() noexcept{
-
-                static_cast<T *>(this)->sync();
-
-            }
-
-            auto to_observable() noexcept{
-
-                return this;
-
-            }
-
-    };
-
 };
 
 namespace dg::heap::seeker{
@@ -781,7 +740,7 @@ namespace dg::heap::utility{
             
             auto llast   = std::next(first);
 
-            while (llast != last && !stop_cond(llast, std::prev(llast))){
+            while (llast != last && !stop_cond(*llast, *std::prev(llast))){
                 ++llast;
             } 
             
@@ -805,8 +764,8 @@ namespace dg::heap::utility{
 
             } else{
 
-                constexpr size_t MID = (BEGIN + END) >> 1;
-                constexpr auto MID_VAL = transform_lambda(std::integral_constant<size_t, MID>{});  
+                constexpr size_t MID    = (BEGIN + END) >> 1;
+                constexpr auto MID_VAL  = transform_lambda(std::integral_constant<size_t, MID>{});  
 
                 return (key < MID_VAL) ? lb_templatize<BEGIN, MID>(cb_lambda, transform_lambda, key)
                                        : lb_templatize<MID, END>(cb_lambda, transform_lambda, key);
@@ -2738,6 +2697,148 @@ namespace dg::heap::interval_ops{
 
 };
 
+namespace dg::heap::batch_interval_ops{
+    
+    struct BatchAssorter{
+
+        using interval_type     = types::interval_type;
+        
+        using _IntervalUtility  = utility::IntervalEssential;
+        using _IntervalLambda   = utility::IntervalEssentialLambdanizer;
+        using _NumericUtility   = utility::NumericUtility;
+        using _LambdaUlt        = utility::LambdaUtility;
+        using _IterUlt          = utility::IteratorUtility;
+
+        template <class _Iterator> 
+        static constexpr auto inplace_sort(_Iterator first, _Iterator last) -> std::pair<_Iterator, _Iterator>{
+
+            auto cmp_lambda = [](const interval_type& lhs, const interval_type& rhs){
+                return _IntervalUtility::get_interval_beg(lhs) < _IntervalUtility::get_interval_beg(rhs);
+            };
+            
+            std::sort(first, last, cmp_lambda);
+
+            return {first, last};
+
+        }
+
+        template <class _Iterator>
+        static constexpr auto inplace_shrink(_Iterator first, _Iterator last) -> std::pair<_Iterator, _Iterator>{
+
+            using element_type = typename std::remove_reference_t<decltype(_IterUlt::meat(std::declval<_Iterator>()))>; 
+
+            auto ptr        = first;
+            auto i          = first;
+            element_type rs;
+            
+            while (i != last){
+
+                std::tie(rs, i)     = _NumericUtility::accumulate_until(_IntervalLambda::uunion, i, last, _LambdaUlt::negate(_IntervalLambda::is_consecutive));
+                _IterUlt::meat(ptr) = rs;
+                ptr                 = std::next(ptr);
+            
+            } 
+
+            return {first, ptr}; 
+
+        } 
+
+        template <class _Iterator>
+        static constexpr auto inplace_assort(_Iterator first, _Iterator last) -> std::pair<_Iterator, _Iterator>{
+
+            return utility::piecewise_invoke(inplace_shrink<_Iterator>, inplace_sort(first, last));
+
+        }
+        
+    };
+
+    template <size_t HEIGHT>
+    struct IntervalApplier{
+
+        using interval_type     = types::interval_type;
+
+        using _IteratorUlt      = utility::IteratorUtility;
+        using _IntervalUlt      = utility::IntervalEssential_P;
+        using _HeapUlt          = utility::HeapEssential;
+
+        //assume asc order {first, last}
+        template <size_t ARG_HEIGHT, class Iterator, class StopCond, class CallBack, class PostCallBack, class RightExclCallBack, class LeftExclCallBack>
+        static inline void apply(size_t idx, 
+                                 const interval_type& interval,
+                                 Iterator first,
+                                 Iterator last, 
+                                 const StopCond& stop_cond,
+                                 const CallBack& callback, 
+                                 const PostCallBack& post_cb,
+                                 const RightExclCallBack& rex_cb,
+                                 const LeftExclCallBack& lex_cb){
+            
+            if constexpr(ARG_HEIGHT <= HEIGHT){
+
+                constexpr auto HEIGHT_IC    = std::integral_constant<size_t, ARG_HEIGHT>(); 
+
+                if (stop_cond(HEIGHT_IC, interval, idx, first, last)){
+
+                    callback(HEIGHT_IC, interval, idx, first, last);
+                    return;
+
+                }
+
+                auto midpoint   = _IntervalUlt::midpoint(interval);
+                auto back       = _IteratorUlt::prev_last(first, last);
+
+                if (_IntervalUlt::is_left_bound(_IteratorUlt::meat(back), midpoint)){
+
+                    apply<ARG_HEIGHT + 1>(_HeapUlt::left(idx), _IntervalUlt::left_shrink(interval, midpoint), first, last, stop_cond, callback, post_cb, rex_cb, lex_cb);
+                    lex_cb(HEIGHT_IC, interval, idx);
+
+                } else if (_IntervalUlt::is_right_bound(_IteratorUlt::meat(first), midpoint)){
+
+                    apply<ARG_HEIGHT + 1>(_HeapUlt::right(idx), _IntervalUlt::right_shrink(interval, midpoint), first, last, stop_cond, callback, post_cb, rex_cb, lex_cb);
+                    rex_cb(HEIGHT_IC, interval, idx);
+
+                } else{
+                    
+                    auto[l_excl, r_incl] = _IntervalUlt::pair_shrink(first, last, midpoint); 
+
+                    apply<ARG_HEIGHT + 1>(_HeapUlt::left(idx), _IntervalUlt::left_shrink(interval, midpoint), first, l_excl, stop_cond, callback, post_cb, rex_cb, lex_cb);
+                    apply<ARG_HEIGHT + 1>(_HeapUlt::right(idx), _IntervalUlt::right_shrink(interval, midpoint), r_incl, last, stop_cond, callback, post_cb, rex_cb, lex_cb);
+
+                }
+
+                post_cb(HEIGHT_IC, interval, idx);
+
+            }
+
+        }
+
+    };
+
+    struct IntervalApplierLambdaGenerator{
+
+        using interval_type = types::interval_type;
+
+        template <size_t TREE_HEIGHT, class StopCond, class CallBack, class PostCallBack, class RightExclCallBack, class LeftExclCallBack>
+        static constexpr auto get(const std::integral_constant<size_t, TREE_HEIGHT>&,
+                                  const StopCond& stop_cond,
+                                  const CallBack& callback,
+                                  const PostCallBack& post_cb,
+                                  const RightExclCallBack& rex_cb,
+                                  const LeftExclCallBack& lex_cb){
+            
+            using _IntervalApplier = IntervalApplier<TREE_HEIGHT>; 
+
+            auto rs = [=]<size_t IDX_HEIGHT, class Iterator>(const std::integral_constant<size_t, IDX_HEIGHT>&, const interval_type& intv, size_t idx, Iterator first, Iterator last){
+                _IntervalApplier::template apply<IDX_HEIGHT>(idx, intv, first, last, stop_cond, callback, post_cb, rex_cb, lex_cb);
+            };
+
+            return rs;
+
+        }
+    };
+
+};
+
 namespace dg::heap::interval_ops_injection{
 
     struct IntervalApplierStopCondGenerator{
@@ -2778,11 +2879,54 @@ namespace dg::heap::interval_ops_injection{
 
     };
 
+    struct BatchIntervalApplierStopCondGenerator{
+        
+        using interval_type = types::interval_type;
+        using _IteratorUlt  = utility::IteratorUtility;
+        using _LambdaUlt    = utility::LambdaUtility;
+
+        static constexpr auto deflt(){
+
+            auto rs = []<size_t ARG_HEIGHT, class Iterator>(const std::integral_constant<size_t, ARG_HEIGHT>&,
+                                                            const interval_type&,
+                                                            size_t, 
+                                                            Iterator first, 
+                                                            Iterator last){
+                return _IteratorUlt::is_equal(std::next(first), last);
+            };
+
+            return rs;
+
+        }
+
+        static constexpr auto get_filter(){
+
+            auto rs = []<size_t ARG_HEIGHT, class Iterator>(const std::integral_constant<size_t, ARG_HEIGHT>& height,
+                                                            const interval_type& intv,
+                                                            size_t idx,
+                                                            Iterator,
+                                                            Iterator){
+                return std::make_tuple(height, intv, idx);
+            };
+
+            return rs;
+        }
+
+        template <class T>
+        static constexpr auto customize(const T& stop_cond){
+
+            return _LambdaUlt::bind_filter_n_deflate(stop_cond, get_filter());
+            
+        }
+
+    };
+
     struct HeapOperatorLambdaGenerator{
 
         using store_type        = types::store_type;
         using interval_type     = types::interval_type; 
 
+        //REVIEW: RTTI this and benchmark
         template <class T>
         static constexpr auto get_block_lambda(const internal_core::HeapOperatable<T>){
 
@@ -2850,7 +2994,6 @@ namespace dg::heap::interval_ops_injection{
                                                      const interval_type& intv,
                                                      size_t idx){
 
-                // auto new_height     = height; //bug
                 auto new_height     = _HeapUlt::next_height(height);
                 auto new_intv       = _IntervalUlt::right_interval(intv);
                 auto new_idx        = _HeapUlt::right(idx);
@@ -2869,7 +3012,6 @@ namespace dg::heap::interval_ops_injection{
                                                      const interval_type& intv,
                                                      size_t idx){
             
-                // auto new_height     = height; //bug
                 auto new_height     = _HeapUlt::next_height(height);
                 auto new_intv       = _IntervalUlt::left_interval(intv);
                 auto new_idx        = _HeapUlt::left(idx);
@@ -2996,6 +3138,51 @@ namespace dg::heap::dispatcher{
 
     };
 
+    struct PartialUnblockDispatcher{
+
+        using interval_type             = types::interval_type; 
+        using _LambdaUlt                = utility::LambdaUtility;
+        using _LambdaGen                = interval_ops_injection::HeapOperatorLambdaGenerator; 
+        using _LambdaFil                = interval_ops_injection::FilterLambdaGenerator;
+        using _IntervalApplierLambda    = interval_ops::IntervalApplierLambdaGenerator;
+        using _StopCondGen              = interval_ops_injection::IntervalApplierStopCondGenerator;
+        using _HeapUtility              = utility::HeapEssential;
+
+        template <class T> 
+        static inline void dispatch_unblock(const internal_core::HeapOperatable<T> ops, const interval_type& key_interval) noexcept{
+            
+            constexpr auto HEIGHT           = internal_core::HeapOperatable<T>::HEIGHT;
+            constexpr auto START_IDX        = size_t{0u};
+            constexpr auto START_HEIGHT     = _HeapUtility::idx_to_height(START_IDX);
+
+            auto is_blocked_lambda          = _LambdaGen::get_is_blocked_lambda(ops);
+            auto unblock_lamda              = _LambdaGen::get_unblock_lambda(ops);
+            auto block_lambda               = _LambdaGen::get_block_lambda(ops);
+            auto post_lambda                = _LambdaGen::get_update_lambda(ops);
+            auto right_excl_lambda          = _LambdaUlt::bind_filter_n_deflate(block_lambda, _LambdaFil::left());
+            auto left_excl_lambda           = _LambdaUlt::bind_filter_n_deflate(block_lambda, _LambdaFil::right());
+            
+            auto worker_lambda              = _IntervalApplierLambda::get(std::integral_constant<size_t, HEIGHT>{}, _StopCondGen::deflt(), _LambdaUlt::get_null_lambda(), post_lambda, right_excl_lambda, left_excl_lambda); 
+            auto downstream_worker_lambda   = _LambdaUlt::bind_filter_n_deflate(worker_lambda, _LambdaFil::intersect(key_interval));
+            auto transfer_lambda            = _LambdaUlt::bind_void_layer(downstream_worker_lambda, unblock_lamda); 
+            auto upstream_worker_lambda     = _IntervalApplierLambda::get(std::integral_constant<size_t, HEIGHT>{}, _StopCondGen::customize(is_blocked_lambda), transfer_lambda, post_lambda, _LambdaUlt::get_null_lambda(), _LambdaUlt::get_null_lambda());
+
+            upstream_worker_lambda(std::integral_constant<size_t, START_HEIGHT>{}, key_interval, START_IDX);
+
+        }
+
+    };
+
+    struct StdDispatcher: private DiscreteBlockDispatcher, private PartialUnblockDispatcher{
+
+        using _Blocker      = DiscreteBlockDispatcher;
+        using _Unblocker    = PartialUnblockDispatcher;
+
+        using _Blocker::dispatch_block;
+        using _Unblocker::dispatch_unblock;
+
+    };
+
     struct DiscreteDispatcher: private DiscreteBlockDispatcher, private DiscreteUnblockDispatcher{
         
         using _Blocker      = DiscreteBlockDispatcher;
@@ -3004,6 +3191,174 @@ namespace dg::heap::dispatcher{
         using _Blocker::dispatch_block;
         using _Unblocker::dispatch_unblock;
         
+    }; 
+
+    //REVIEW: refactoring required (rtti required - reduce templates)
+    struct DiscreteBatchBlockDispatcher{
+
+        using interval_type     = types::interval_type;
+        using _LambdaGen        = interval_ops_injection:: HeapOperatorLambdaGenerator;
+        using _SStopCond        = interval_ops_injection::IntervalApplierStopCondGenerator; 
+        using _BStopCond        = interval_ops_injection::BatchIntervalApplierStopCondGenerator;
+        using _IterUlt          = utility::IteratorUtility;
+        using _LambdaUlt        = utility::LambdaUtility;
+        
+        template <class T>
+        static inline void get_singular_handler(const internal_core::HeapOperatable<T> ops) noexcept{
+            
+            constexpr auto HEIGHT   = internal_core::HeapOperatable<T>::HEIGHT;
+            using _Applier          = interval_ops::IntervalApplier<HEIGHT>;
+            using _IntvUlt          = utility::IntervalUtility<HEIGHT>;
+
+            auto rs = [=]<size_t ARG_HEIGHT, class Iterator>(const std::integral_constant<size_t, ARG_HEIGHT>&, 
+                                                             const interval_type& interval,
+                                                             size_t idx, 
+                                                             Iterator key,
+                                                             Iterator){
+                
+                _Applier::template apply<ARG_HEIGHT>(idx, 
+                                                     interval, 
+                                                     _IntvUlt::intersect(_IterUlt::meat(key), interval), 
+                                                     _SStopCond::deflt(),
+                                                     _LambdaGen::get_block_lambda(ops), 
+                                                     _LambdaGen::get_update_lambda(ops),
+                                                     _LambdaUlt::get_null_lambda(),
+                                                     _LambdaUlt::get_null_lambda());
+
+            };
+
+            return rs;
+
+        }
+
+        template <class T, class Iterator>
+        static inline void dispatch_block(const internal_core::HeapOperatable<T> ops, Iterator first, Iterator last) noexcept{
+
+            constexpr auto HEIGHT   = internal_core::HeapOperatable<T>::HEIGHT;
+            using _BatchApplier     = batch_interval_ops::IntervalApplier<HEIGHT>;
+            using _HeapUlt          = utility::HeapUtility<HEIGHT>;
+            using _IntvUlt          = utility::IntervalUtility<HEIGHT>;
+
+            constexpr auto START_IDX        = size_t{0u};
+            constexpr auto START_HEIGHT     = _HeapUlt::idx_to_height(START_IDX);
+            constexpr auto START_INTV       = _IntvUlt::idx_to_interval(START_IDX);
+
+            _BatchApplier::template apply<START_HEIGHT>(START_IDX, START_INTV, first, last, 
+                                                        _BStopCond::deflt(),
+                                                        get_singular_handler(ops), 
+                                                        _LambdaGen::get_update_lambda(ops),
+                                                        _LambdaUlt::get_null_lambda(),
+                                                        _LambdaUlt::get_null_lambda());
+
+        }
+
+    };
+
+    //REVIEW: refactoring required (rtti required - reduce templates)
+    struct PartialBatchUnblockDispatcher{
+
+        using interval_type         = types::interval_type;
+        using _LambdaGen            = interval_ops_injection::HeapOperatorLambdaGenerator;
+        using _LambdaFil            = interval_ops_injection::FilterLambdaGenerator;
+        using _SStopCond            = interval_ops_injection::IntervalApplierStopCondGenerator;
+        using _BStopCond            = interval_ops_injection::BatchIntervalApplierStopCondGenerator;
+        using _LambdaUlt            = utility::LambdaUtility;
+        using _BatchApplierLambda   = batch_interval_ops::IntervalApplierLambdaGenerator;
+        using _IterUlt              = utility::IteratorUtility;
+
+        template <class T>
+        static constexpr auto get_singular_handler(const internal_core::HeapOperatable<T> ops){
+
+            constexpr auto HEIGHT       = internal_core::HeapOperatable<T>::HEIGHT;
+            using _Applier              = interval_ops::IntervalApplier<HEIGHT>;
+            using _IntvUlt              = utility::IntervalUtility<HEIGHT>;
+
+            auto rs = [=]<size_t ARG_HEIGHT, class Iterator>(const std::integral_constant<size_t, ARG_HEIGHT>&,
+                                                             const interval_type& interval,
+                                                             size_t idx,
+                                                             Iterator key,
+                                                             Iterator){
+                
+                _Applier::template apply<ARG_HEIGHT>(idx, 
+                                                     interval, 
+                                                     _IntvUlt::intersect(_IterUlt::meat(key), interval), 
+                                                     _SStopCond::deflt(),
+                                                     _LambdaUlt::get_null_lambda(),
+                                                     _LambdaGen::get_update_lambda(ops),
+                                                     _LambdaUlt::bind_filter_n_deflate(_LambdaGen::get_block_lambda(ops), _LambdaFil::left()),
+                                                     _LambdaUlt::bind_filter_n_deflate(_LambdaGen::get_block_lambda(ops), _LambdaFil::right()));
+
+            };
+
+            return rs;
+
+        }
+
+        static constexpr auto get_shrink_filter(){
+
+            auto rs = []<size_t ARG_HEIGHT, class Iterator>(const std::integral_constant<size_t, ARG_HEIGHT>& ic,
+                                                            const interval_type& interval,
+                                                            size_t idx,
+                                                            Iterator first,
+                                                            Iterator last){
+                                    
+                auto[ffirst, llast] = batch_interval_ops::BatchAssorter::inplace_shrink(first, last); //last[-1] is unchanged - assume last[-1] is changed => last[-1] is a result of a combination => new_length < org_length => last[-1] is unchanged (contradiction)
+                return std::make_tuple(ic, interval, idx, ffirst, llast); 
+
+            };
+
+            return rs;
+
+        }
+
+        template <class T, class Iterator>
+        static inline void dispatch_unblock(const internal_core::HeapOperatable<T> ops, Iterator first, Iterator last) noexcept{
+            
+            constexpr auto HEIGHT           = internal_core::HeapOperatable<T>::HEIGHT;
+            using _IntvUlt                  = utility::IntervalUtility<HEIGHT>;
+            using _HeapUlt                  = utility::HeapUtility<HEIGHT>;
+
+            constexpr auto START_IDX        = size_t{0u};
+            constexpr auto START_HEIGHT     = _HeapUlt::idx_to_height(START_IDX);
+            constexpr auto START_INTV       = _IntvUlt::idx_to_interval(START_IDX);
+
+            auto updater                    = _LambdaGen::get_update_lambda(ops);
+            auto blocker                    = _LambdaGen::get_block_lambda(ops);
+            auto unblocker                  = _LambdaGen::get_unblock_lambda(ops);
+            auto is_blocked_verifier        = _LambdaGen::get_is_blocked_lambda(ops);  
+
+            auto downstream_worker          = _BatchApplierLambda::get(std::integral_constant<size_t, HEIGHT>{},
+                                                                       _BStopCond::deflt(), 
+                                                                       get_singular_handler(ops), 
+                                                                       updater, 
+                                                                       _LambdaUlt::bind_filter_n_deflate(blocker, _LambdaFil::left()), 
+                                                                       _LambdaUlt::bind_filter_n_deflate(blocker, _LambdaFil::right()));
+
+            auto ddownstream_worker         = _LambdaUlt::bind_filter_n_deflate(downstream_worker, get_shrink_filter());
+            auto intermediate_worker        = _LambdaUlt::bind_filter_n_deflate(unblocker, _BStopCond::get_filter()); // semantics 
+            auto transfer_worker            = _LambdaUlt::bind_void_layer(ddownstream_worker, intermediate_worker);
+
+            auto upstream_worker            = _BatchApplierLambda::get(std::integral_constant<size_t, HEIGHT>{},
+                                                                       _BStopCond::customize(is_blocked_verifier),
+                                                                       transfer_worker, 
+                                                                       updater,
+                                                                       _LambdaUlt::get_null_lambda(),
+                                                                       _LambdaUlt::get_null_lambda());
+            
+            upstream_worker(std::integral_constant<size_t, START_HEIGHT>{}, START_INTV, START_IDX, first, last);
+
+        } 
+
+    };
+
+    struct BatchDispatcher: private DiscreteBatchBlockDispatcher, private PartialBatchUnblockDispatcher{
+        
+        using _Blocker      = DiscreteBatchBlockDispatcher;
+        using _Unblocker    = PartialBatchUnblockDispatcher;
+
+        using _Blocker::dispatch_block;
+        using _Unblocker::dispatch_unblock;
+
     }; 
 
     struct DispatcherSpawner{
@@ -3029,6 +3384,54 @@ namespace dg::heap::dispatcher{
 
             auto lambda = [=](const interval_type& intv) noexcept{
                 Dispatcher::dispatch_unblock(ops, intv);
+            };
+
+            return lambda;
+        }
+
+        template <class T>
+        static constexpr auto get_std_block_dispatcher(const internal_core::HeapOperatable<T> ops){
+            
+            using Dispatcher = StdDispatcher; 
+
+            auto lambda = [=](const interval_type& intv) noexcept{ 
+                Dispatcher::dispatch_block(ops, intv);
+            };
+
+            return lambda;
+        } 
+
+        template <class T>
+        static constexpr auto get_std_unblock_dispatcher(const internal_core::HeapOperatable<T> ops){
+
+            using Dispatcher = StdDispatcher;
+
+            auto lambda = [=](const interval_type& intv) noexcept{
+                Dispatcher::dispatch_unblock(ops, intv);
+            };
+
+            return lambda;
+        }
+
+        template <class T>
+        static constexpr auto get_batch_block_dispatcher(const internal_core::HeapOperatable<T> ops){
+
+            using Dispatcher = BatchDispatcher;
+
+            auto lambda = [=]<class Iterator>(Iterator first, Iterator last) noexcept{
+                Dispatcher::dispatch_block(ops, first, last);
+            };
+
+            return lambda;
+        }
+
+        template <class T>
+        static constexpr auto get_batch_unblock_dispatcher(const internal_core::HeapOperatable<T> ops){
+
+            using Dispatcher = BatchDispatcher;
+
+            auto lambda = [=]<class Iterator>(Iterator first, Iterator last) noexcept{
+                Dispatcher::dispatch_unblock(ops, first, last);
             };
 
             return lambda;
@@ -3137,7 +3540,7 @@ namespace dg::heap::instantiator{
             constexpr auto TRANSFERER_HEIGHT    = internal_core::HeapOperatable<T1>::HEIGHT;
             using _Traverser                    = interval_ops::IntervalTraverser<TRANSFERER_HEIGHT>; 
 
-            auto dispatcher                     = _DispatcherSpawner::get_discrete_block_dispatcher(transferee);
+            auto dispatcher                     = _DispatcherSpawner::get_std_block_dispatcher(transferee);
             auto cb_lambda                      = _LambdaUlt::bind_filter_n_deflate(dispatcher, _LambdaFil::extract_interval()); 
 
             _Traverser::traverse(cb_lambda, _LambdaUlt::get_null_lambda(), _LambdaGen::get_is_blocked_lambda(transferer));
@@ -3146,6 +3549,410 @@ namespace dg::heap::instantiator{
 
     };
     
+};
+
+namespace dg::heap::market{
+    
+    class StdSaleAgent: public Buyable<StdSaleAgent>{
+
+        private:
+
+            using store_type        = types::store_type;
+            using interval_type     = types::interval_type;
+            using _IntervalUtility  = utility::IntervalEssential;
+
+            interval_type product;
+            bool is_decommissioned;
+
+        public:
+
+            StdSaleAgent(interval_type product) noexcept: product(product), 
+                                                          is_decommissioned(false){} 
+
+            std::optional<interval_type> buy(store_type sz) noexcept{ 
+                
+                assert(sz != 0u);
+
+                if (!_IntervalUtility::is_valid_interval(this->product) || _IntervalUtility::span_size(this->product) < sz){ //REVIEW: very weird logic - need excl interval
+                    return std::nullopt;
+                }
+                
+                auto beg        = _IntervalUtility::get_interval_beg(this->product);
+                auto rs         = _IntervalUtility::excl_relative_to_interval(_IntervalUtility::make(beg, sz));
+                this->product   = _IntervalUtility::make(_IntervalUtility::get_interval_excl_end(rs), _IntervalUtility::get_interval_end(this->product)); //
+
+                return rs;
+
+            }
+
+            template <class CollectorType>
+            void decomission(CollectorType&& collector) noexcept(noexcept(collector(std::declval<interval_type>()))){
+                
+                if (!this->is_decommissioned){
+
+                    if (_IntervalUtility::is_valid_interval(this->product)){
+                        collector(this->product);
+                    } else{
+                        collector(std::nullopt);
+                    }
+
+                    this->is_decommissioned = true; 
+
+                }
+    
+            }
+
+    };
+
+    class StdBuyAgent: public Sellable<StdBuyAgent>{ 
+        
+        private:
+
+            using interval_type     = types::interval_type;
+
+            std::vector<interval_type> _container; //
+            bool is_decomissioned;
+
+        public:
+
+            StdBuyAgent(std::vector<interval_type> _container): _container(std::move(_container)), 
+                                                                is_decomissioned(false){}
+
+            bool sell(const interval_type& product) noexcept{ 
+                
+                //precond: valid interval_type
+
+                if ((this->_container.size() == this->_container.capacity())){
+                    return false;
+                }
+                
+                this->_container.push_back(product); //REVIEW: implementation defined (push_back is not noexcept qualified)
+                return true;
+
+            }
+
+            template <class CollectorType>
+            void decomission(CollectorType&& collector) noexcept(noexcept(collector(_container.begin(), _container.end()))){
+                
+                if (!this->is_decomissioned){
+                    
+                    collector(this->_container.begin(), this->_container.end());
+                    this->is_decomissioned = true;
+
+                }
+
+            }
+
+    };
+
+    class FragmentedSaleAgent: public Buyable<FragmentedSaleAgent>{
+
+        private:
+
+            using store_type        = types::store_type;
+            using interval_type     = types::interval_type;
+            
+            StdSaleAgent sale_agent;
+            StdBuyAgent buy_agent;
+            std::vector<interval_type> products;
+        
+        public:
+
+            FragmentedSaleAgent(StdSaleAgent sale_agent, 
+                                StdBuyAgent buy_agent, 
+                                std::vector<interval_type> products): sale_agent(std::move(sale_agent)),
+                                                                      buy_agent(std::move(buy_agent)),
+                                                                      products(std::move(products)){}
+
+            std::optional<interval_type> buy(store_type sz) noexcept{
+                
+                while (true){
+
+                    if (auto rs = this->sale_agent.buy(sz); rs){
+                        return rs;
+                    }
+
+                    if (!this->has_next()){
+                        return std::nullopt;
+                    }
+
+                    this->decomission_sale_agent();
+                    this->spawn_sale_agent();
+
+                }
+
+            }
+
+            template <class CollectorType>
+            void decomission(CollectorType&& collector) noexcept(noexcept(buy_agent(std::declval<CollectorType>()))){
+
+                this->exhaust();
+                this->buy_agent.decomission(std::forward<CollectorType>(collector));
+
+            }
+
+        private:
+
+            bool has_next(){
+            
+                return !this->products.empty();
+            
+            }
+
+            void spawn_sale_agent(){
+
+                this->sale_agent = StdSaleAgent(this->products.back());
+                this->products.pop_back();
+
+            }
+
+            void decomission_sale_agent(){
+                
+                auto transfer_lambda = [&](std::optional<interval_type> intv){
+                    if (intv){
+                        this->buy_agent.sell(intv.value());
+                    }
+                };
+
+                this->sale_agent.decomission(transfer_lambda);
+                
+            }
+
+            void exhaust(){
+                
+                decomission_sale_agent();
+
+                while (has_next()){
+                    spawn_sale_agent();
+                    decomission_sale_agent();
+                }
+
+            }
+
+    };
+
+    struct AgencyCenter{
+
+        using interval_type             = types::interval_type;
+
+        using StdSaleAgentIntf          = std::shared_ptr<std::remove_pointer_t<decltype(std::declval<StdSaleAgent>().to_buyable())>>; 
+        using StdBuyAgentIntf           = std::shared_ptr<std::remove_pointer_t<decltype(std::declval<StdBuyAgent>().to_sellable())>>;
+        using FragmentedSaleAgentIntf   = std::shared_ptr<std::remove_pointer_t<decltype(std::declval<FragmentedSaleAgent>().to_buyable())>>;
+
+        template <class _Collector>         
+        static inline auto get_std_sale_agent(_Collector collector, interval_type valid_interval) -> StdSaleAgentIntf{
+            
+            auto cleanup_lambda = [=](StdSaleAgent * ins){
+                ins->decomission(collector);
+                delete ins;
+            };  
+
+            using rs_type   = std::unique_ptr<StdSaleAgent, decltype(cleanup_lambda)>;
+            auto rs         = rs_type{new StdSaleAgent(valid_interval), cleanup_lambda}; //REIVEW: leak (implementation defined)
+
+            return rs;
+
+        }
+
+        template <class _Collector>
+        static inline auto get_std_buy_agent(_Collector collector, size_t buying_limits) -> StdBuyAgentIntf{
+
+            auto cleanup_lambda = [=](StdBuyAgent * ins){
+                ins->decomission(collector);
+                delete ins;
+            };
+
+            using _Init     = utility::ReservationVectorInitializer<interval_type>;
+            using rs_type   = std::unique_ptr<StdBuyAgent, decltype(cleanup_lambda)>;
+            auto rs         = rs_type{new StdBuyAgent(_Init(buying_limits)), cleanup_lambda}; //REIVEW: leak (implmenetation defined)
+
+            return rs;
+
+        }
+
+        template <class _Collector>
+        static inline auto get_fragmented_sale_agent(_Collector collector, std::vector<interval_type> valid_intervals) -> FragmentedSaleAgentIntf{
+
+            assert(valid_intervals.size() != 0);
+
+            auto cleanup_lambda = [=](FragmentedSaleAgent * ins){
+                ins->decomission(collector);
+                delete ins;
+            };
+
+            using _Init     = utility::ReservationVectorInitializer<interval_type>;
+            using rs_type   = std::unique_ptr<FragmentedSaleAgent, decltype(cleanup_lambda)>;
+
+            StdBuyAgent buy_agent(_Init(valid_intervals.size()));
+            StdSaleAgent sale_agent(valid_intervals.back());
+            valid_intervals.pop_back();
+
+            auto rs         = rs_type{new FragmentedSaleAgent(std::move(sale_agent), std::move(buy_agent), std::move(valid_intervals)), cleanup_lambda}; //REVIEW: leak (implementation defined) 
+
+            return rs;
+
+        }
+
+    }; 
+
+    struct IRS{
+
+        using interval_type         = types::interval_type;
+        using _DispatcherSpawner    = dispatcher::DispatcherSpawner;
+        using _Assorter             = batch_interval_ops::BatchAssorter;
+        
+        template <class T>
+        static constexpr auto get_contiguous_collector(const internal_core::HeapOperatable<T> ops){
+
+            auto dispatcher         = _DispatcherSpawner::get_std_unblock_dispatcher(ops);  
+            using dispatcher_type   = decltype(dispatcher); 
+
+            auto collector_lambda   = [=](std::optional<interval_type> free_space) noexcept(noexcept(std::declval<dispatcher_type>()(std::declval<interval_type>()))){
+                if (free_space){
+                    dispatcher(free_space.value());
+                }
+            };  
+
+            return collector_lambda;
+
+        }
+
+        template <class T>
+        static constexpr auto get_fragmented_collector(const internal_core::HeapOperatable<T> ops){
+
+            auto dispatcher         = _DispatcherSpawner::get_batch_unblock_dispatcher(ops);
+            using dispatcher_type   = decltype(dispatcher);
+
+            auto collector_lambda   = [=]<class _Iterator>(_Iterator first, _Iterator last) noexcept(noexcept(std::declval<dispatcher_type>()(std::declval<_Iterator>(), std::declval<_Iterator>()))){
+                if (first != last){
+                    essentials::piecewise_void_invoke(dispatcher, _Assorter::inplace_sort(first, last));
+                }
+            };
+
+            return collector_lambda;
+
+        }
+
+    };
+
+    struct BrokerCenter{
+
+        using interval_type         = types::interval_type;
+        using _DispatcherSpawner    = dispatcher::DispatcherSpawner;
+        using _IRS                  = IRS;
+        using _AgencyCenter         = AgencyCenter;
+        
+        static constexpr size_t DEFAULT_BUYING_LIMIT = size_t{1} << 20;
+
+        template <class T>
+        static inline auto get_sale_broker(const internal_core::HeapOperatable<T> ops, interval_type valid_interval){ //break broker semantics - usually responsible for both buy and sell
+            
+            auto block_lambda   = [=, dispatcher = _DispatcherSpawner::get_std_block_dispatcher(ops)]{dispatcher(valid_interval);};
+            auto unblock_lambda = [=, dispatcher = _DispatcherSpawner::get_std_unblock_dispatcher(ops)]{dispatcher(valid_interval);};
+            auto collector      = _IRS::get_contiguous_collector(ops);
+
+            block_lambda();
+            utility::BackoutExecutor backout_plan(unblock_lambda);
+
+            auto rs = _AgencyCenter::get_std_sale_agent(collector, valid_interval);
+            backout_plan.release();
+
+            return rs;
+
+        }
+
+        template <class T>
+        static inline auto get_batch_sale_broker(const internal_core::HeapOperatable<T> ops, std::vector<interval_type> valid_intervals){
+            
+            assert(valid_intervals.size() != 0);
+
+            auto[first, last]   = std::make_tuple(valid_intervals.begin(), valid_intervals.end()); 
+            auto block_lambda   = [=, dispatcher = _DispatcherSpawner::get_batch_block_dispatcher(ops)]{dispatcher(first, last);};
+            auto unblock_lambda = [=, dispatcher = _DispatcherSpawner::get_batch_unblock_dispatcher(ops)]{dispatcher(first, last);};
+            auto collector      = _IRS::get_fragmented_collector(ops);
+
+            block_lambda();
+            utility::BackoutExecutor backout_plan(unblock_lambda);
+
+            auto rs = _AgencyCenter::get_fragmented_sale_agent(collector, valid_intervals);
+            backout_plan.release();
+
+            return rs;            
+
+        }
+
+        template <class T>
+        static inline auto get_buy_broker(const internal_core::HeapOperatable<T> ops, size_t buying_limits = DEFAULT_BUYING_LIMIT){
+
+            return _AgencyCenter::get_std_buy_agent(IRS::get_fragmented_collector(ops), buying_limits);
+
+        }
+    
+    };
+
+    struct BrokerSpawner{
+
+        using interval_type     = types::interval_type;
+        using _BrokerCenter     = BrokerCenter;
+
+        template <class T, class Generator, std::enable_if_t<std::is_same_v<decltype(std::declval<Generator>()()), std::vector<interval_type>>, bool>  = true>
+        static inline auto get_sale_broker_spawner(const internal_core::HeapOperatable<T> heap_ops, Generator gen){
+            
+            using gen_type      = std::vector<interval_type>;
+            using type          = decltype(_BrokerCenter::get_batch_sale_broker(heap_ops, std::declval<gen_type>()));
+            using rs_type       = types_space::nillable_t<type>; 
+
+            auto spawner        = [=]{
+
+                gen_type intervals = gen();
+
+                if (intervals.empty()){
+                    return rs_type{};
+                }
+
+                return rs_type{_BrokerCenter::get_batch_sale_broker(heap_ops, std::move(intervals))};
+            
+            };
+
+            return spawner;
+
+        }
+
+        template <class T, class Generator, std::enable_if_t<std::is_same_v<decltype(std::declval<Generator>()()), std::optional<interval_type>>, bool> = true>
+        static inline auto get_sale_broker_spawner(const internal_core::HeapOperatable<T> heap_ops, Generator gen){
+            
+            using type      = decltype(_BrokerCenter::get_sale_broker(heap_ops, std::declval<interval_type>()));
+            using rs_type   = types_space::nillable_t<type>;
+
+            auto spawner    = [=]{
+
+                std::optional<interval_type> interval = gen();
+
+                if (!interval){
+                    return rs_type{}; //
+                }
+
+                return rs_type{_BrokerCenter::get_sale_broker(heap_ops, interval.value())};
+
+            };
+
+            return spawner;
+        
+        }
+
+        template <class T>
+        static inline auto get_buy_broker_spawner(const internal_core::HeapOperatable<T> heap_ops, size_t buying_limits){ //pre_cond -- 
+            
+            auto spawner    = [=]{
+                return _BrokerCenter::get_buy_broker(heap_ops, buying_limits);
+            };
+
+            return spawner;
+
+        }
+
+    };
+
 };
 
 namespace dg::heap::cache{
@@ -3337,17 +4144,12 @@ namespace dg::heap::top_impl{
 
         using _IntervalUtility  = utility::IntervalUtility<HEIGHT>;
         using _NodeUtility      = utility::NodeUtility; 
+        using _HeapUtility      = utility::HeapEssential;
         using _ConstUtility     = utility::ValConstUtility;
 
         static inline void block(container_type arr, size_t idx) noexcept{
 
             _NodeUtility::assign(arr[idx], _ConstUtility::empty<Node>());
-
-        }
-
-        static inline bool is_blocked(container_type arr, size_t idx) noexcept{
-
-            return _NodeUtility::equal(arr[idx], _ConstUtility::empty<Node>());
 
         }
 
@@ -4112,48 +4914,6 @@ namespace dg::heap::data{
 
 };
 
-namespace dg::heap::broadcaster{
-
-    class MemReleaser: public virtual Broadcastable{
-
-        private:
-
-            std::vector<std::shared_ptr<NoExceptObservable>> observers;
-        
-        public:
-
-            MemReleaser(std::vector<std::shared_ptr<NoExceptObservable>> observers): observers(std::move(observers)){}
-
-            void notify() noexcept{
-                
-                auto notifier = [](std::shared_ptr<NoExceptObservable>& observer){observer->sync();};
-                std::for_each(this->observers.begin(), this->observers.end(), notifier); 
-
-            }
-
-    };
-
-    template <class T>
-    class NoExceptObserverConverter: public virtual NoExceptObservable{
-
-        private:
-
-            std::shared_ptr<NoExceptCRTPObservable<T>> observer;
-        
-        public:
-
-            NoExceptObserverConverter(std::shared_ptr<NoExceptCRTPObservable<T>> observer): observer(observer){}
-
-            void sync() noexcept{
-
-                this->observer->symc();
-
-            }
-
-    };
-
-}
-
 namespace dg::heap::internal_core{
 
     template <class T, class T1>
@@ -4203,16 +4963,18 @@ namespace dg::heap::internal_core{
 
                 if constexpr(ARG_HEIGHT <= DYNAMIC_HEIGHT){
 
+                    _BottomBlocker::template block<ARG_HEIGHT>(_HeapData::get_boolvector_container(), idx);
                     _TopBlocker::block(_HeapData::get_node_container(), idx);
 
                 } else if constexpr(ARG_HEIGHT <= TRACEBACK_HEIGHT){
-                    
+
                     _BottomBlocker::template block<ARG_HEIGHT>(_HeapData::get_boolvector_container(), idx);
                     _CacheOperator::empty_init(_HeapData::get_cache_instance(), idx);
 
                 } else{
 
-                    static_assert(utility::FALSE_VAL<>, "unreachable");
+                    std::abort(); //temporary solution
+                    // static_assert(utility::FALSE_VAL<>, "unreachable");
 
                 }   
 
@@ -4223,10 +4985,11 @@ namespace dg::heap::internal_core{
 
                 if constexpr(ARG_HEIGHT <= DYNAMIC_HEIGHT){
 
+                    _BottomBlocker::template unblock<ARG_HEIGHT>(_HeapData::get_boolvector_container(), idx);
                     _TopBlocker::template unblock<ARG_HEIGHT>(_HeapData::get_node_container(), idx);
 
                 } else if constexpr(ARG_HEIGHT <= TRACEBACK_HEIGHT){
-                    
+
                     _BottomBlocker::template unblock<ARG_HEIGHT>(_HeapData::get_boolvector_container(), idx);
                     _CacheOperator::defaultize(_HeapData::get_cache_instance(), idx, std::integral_constant<size_t, ARG_HEIGHT>{});
 
@@ -4240,12 +5003,8 @@ namespace dg::heap::internal_core{
 
             template <size_t ARG_HEIGHT>
             static bool is_blocked(size_t idx) noexcept{
-
-                if constexpr(ARG_HEIGHT <= DYNAMIC_HEIGHT){
-
-                    return _TopBlocker::is_blocked(_HeapData::get_node_container(), idx);
-
-                } else if constexpr(ARG_HEIGHT <= TRACEBACK_HEIGHT){
+                
+                if constexpr(ARG_HEIGHT <= TRACEBACK_HEIGHT){
 
                     return _BottomBlocker::template is_blocked<ARG_HEIGHT>(_HeapData::get_boolvector_container(), idx); 
 
@@ -4308,6 +5067,160 @@ namespace dg::heap::internal_core{
 
     };
 
+    template <class T, class T1, class BuyableSpawner, class SellableSpawner>
+    class FastAllocator: public ExceptAllocatable<FastAllocator<T, T1, BuyableSpawner, SellableSpawner>>{ //
+
+        private:
+
+            BuyableSpawner buyable_spawner; //fine - generatable pattern (no args)
+            SellableSpawner sellable_spawner;
+
+            std::shared_ptr<market::Buyable<T>>  buyable_ins; //owning semantics 
+            std::shared_ptr<market::Sellable<T1>> sellable_ins; 
+
+        public:
+
+            using store_type    = types::store_type;
+            using interval_type = types::interval_type; 
+            using _IntervalUlt  = utility::IntervalEssential;
+
+            FastAllocator(BuyableSpawner buyable_spawner, 
+                          SellableSpawner sellable_spawner,
+                          std::shared_ptr<market::Buyable<T>> buyable_ins,
+                          std::shared_ptr<market::Sellable<T1>> sellable_ins): buyable_spawner(buyable_spawner),
+                                                                               sellable_spawner(sellable_spawner),
+                                                                               buyable_ins(buyable_ins),
+                                                                               sellable_ins(sellable_ins){}
+
+            std::optional<interval_type> alloc(store_type sz){
+
+                if (sz == 0u){
+                    return std::nullopt;
+                }
+
+                if (auto rs = this->raw_alloc(sz); rs){
+                    return rs;
+                }
+                
+                this->sync_buyable();
+                this->spawn_buyable(); 
+
+                return this->raw_alloc(sz);
+            
+            }
+            
+            void free(const interval_type& intv){
+                
+                if (this->raw_free(intv)){
+                    return;
+                }
+
+                this->sync_sellable();
+                this->spawn_sellable();
+
+                if (!this->raw_free(intv)){
+                    std::abort();
+                }
+
+            }
+
+        private:
+
+            std::optional<interval_type> raw_alloc(store_type sz){
+
+                if (this->is_valid_buyable()){
+                    if (auto rs = this->buyable_ins->buy(sz); rs){
+                        return _IntervalUlt::interval_to_relative(rs.value());
+                    }
+                }
+
+                return std::nullopt;
+
+            }
+
+            bool raw_free(const interval_type& relative){
+
+                return this->is_valid_sellable() && this->sellable_ins->sell(_IntervalUlt::relative_to_interval(relative));
+
+            }
+
+            bool is_valid_buyable(){
+
+                return bool{this->buyable_ins};
+
+            }
+
+            bool is_valid_sellable(){
+
+                return bool{this->sellable_ins};
+
+            }
+
+            void sync_buyable(){
+
+                this->buyable_ins.reset();
+
+            }
+
+            void sync_sellable(){
+
+                this->sellable_ins.reset();
+
+            }
+
+            void spawn_buyable(){
+
+                this->buyable_ins = this->buyable_spawner();
+
+            }
+
+            void spawn_sellable(){
+
+                this->sellable_ins = this->sellable_spawner();
+
+            }
+
+    };
+
+    template <class T, class T1>
+    class StdAllocator: public NoExceptAllocatable<StdAllocator<T, T1>>{
+
+        private:
+
+            std::shared_ptr<NoExceptAllocatable<T>> direct_allocator;
+            std::shared_ptr<ExceptAllocatable<T1>> fast_allocator;
+
+        public:
+
+            using interval_type = types::interval_type;
+            using store_type    = types::store_type;
+
+            StdAllocator(std::shared_ptr<NoExceptAllocatable<T>> direct_allocator,
+                         std::shared_ptr<ExceptAllocatable<T1>> fast_allocator) : direct_allocator(direct_allocator),
+                                                                                  fast_allocator(fast_allocator){}
+            
+            std::optional<interval_type> alloc(store_type sz) noexcept{
+
+                try{
+                    return this->fast_allocator->alloc(sz);
+                } catch(std::exception& e){
+                    return this->direct_allocator->alloc(sz);
+                }
+
+            }
+
+            void free(const interval_type& interval) noexcept{
+
+                try{
+                    this->fast_allocator->free(interval);
+                } catch(std::exception& e){
+                    this->direct_allocator->free(interval);
+                }
+
+            }
+        
+    };
+    
     template <size_t TREE_HEIGHT, class T, class T1, class T2>
     class StdShrinker: public HeapShrinkable<StdShrinker<TREE_HEIGHT, T, T1, T2>>{
         
@@ -4738,7 +5651,7 @@ namespace dg::heap::make{
 
         private:
 
-            using _NodeMaker        = AlignmentEmbeddedResourceMaker<ArrayMaker<NodeArraySpecs<DYNAMIC_HEIGHT>>>;
+            using _NodeMaker        = AlignmentEmbeddedResourceMaker<ArrayMaker<NodeArraySpecs<DYNAMIC_HEIGHT>>>; //REVIEW: cross-platform padding consideration 
             using _BvecMaker        = AlignmentEmbeddedResourceMaker<ArrayMaker<BoolArraySpecs<TRACEBACK_HEIGHT>>>; 
             using _MemoryUtility    = utility::MemoryUtility;
         
@@ -4879,8 +5792,8 @@ namespace dg::heap::resource{
             constexpr auto HEIGHT   = data::StorageExtractible<T>::TREE_HEIGHT; 
 
             auto _seeker    = seeker::SeekerSpawner::get_max_interval_seeker(view);
-            auto blocker    = dispatcher::DispatcherWrapperSpawner::get_std_wrapper(dispatcher::DispatcherSpawner::get_discrete_block_dispatcher(controller));
-            auto unblocker  = dispatcher::DispatcherWrapperSpawner::get_std_wrapper(dispatcher::DispatcherSpawner::get_discrete_unblock_dispatcher(controller));
+            auto blocker    = dispatcher::DispatcherWrapperSpawner::get_std_wrapper(dispatcher::DispatcherSpawner::get_std_block_dispatcher(controller));
+            auto unblocker  = dispatcher::DispatcherWrapperSpawner::get_std_wrapper(dispatcher::DispatcherSpawner::get_std_unblock_dispatcher(controller));
 
             internal_core::DirectAllocator allocator(_seeker, blocker, unblocker);
 
@@ -4892,6 +5805,55 @@ namespace dg::heap::resource{
 
         }
 
+        template <class BuyableSpawnable, class SellableSpawnable>
+        static auto spawn_fast_allocator(BuyableSpawnable buyable_spawner, SellableSpawnable sellable_spawner){
+
+            using buyable_type      = decltype(buyable_spawner());
+            using sellable_type     = decltype(sellable_spawner());
+
+            static_assert(std::is_same_v<types_space::nillable_t<buyable_type>, buyable_type>);
+            static_assert(std::is_same_v<types_space::nillable_t<sellable_type>, sellable_type>);
+
+            internal_core::FastAllocator allocator(buyable_spawner, sellable_spawner, buyable_type{}, sellable_type{});
+
+            using ins_type          = decltype(allocator);
+            using rs_type           = std::shared_ptr<std::remove_pointer_t<decltype(allocator.to_allocatable())>>; //noexceptcrtp ... 
+            rs_type rs              = std::unique_ptr<ins_type>(new ins_type(allocator));
+
+            return rs;
+
+        }
+
+        template <class T, class T1>
+        static auto spawn_fast_allocator(const data::StorageExtractible<T> view,
+                                         const internal_core::HeapOperatable<T1> controller){
+            
+            constexpr auto BUY_LIM  = size_t{1} << 15; //
+            constexpr auto HEIGHT   = data::StorageExtractible<T>::TREE_HEIGHT; 
+
+            auto max_gen            = seeker::SeekerLambdanizer::get_root_seeker(seeker::SeekerSpawner::get_max_interval_seeker(view));
+            auto buyable_spawner    = market::BrokerSpawner::get_sale_broker_spawner(controller, max_gen);
+            auto sellable_spawner   = market::BrokerSpawner::get_buy_broker_spawner(controller, BUY_LIM);
+
+            return spawn_fast_allocator(buyable_spawner, sellable_spawner);
+
+        }
+
+        template <class T, class T1>
+        static auto spawn_batch_fast_allocator(const data::StorageExtractible<T> view,
+                                               const internal_core::HeapOperatable<T> controller){
+            
+            constexpr auto BUY_LIM  = size_t{1} << 15;
+            constexpr auto HEIGHT   = data::StorageExtractible<T>::TREE_HEIGHT; 
+
+            auto batch_gen          = seeker::SeekerLambdanizer::get_greedy_batch_seeker(seeker::SeekerSpawner::get_max_interval_seeker(view));
+            auto buyable_spawner    = market::BrokerSpawner::get_sale_broker_spawner(controller, batch_gen);
+            auto sellable_spawner   = market::BrokerSpawner::get_buy_broker_spawner(controller, BUY_LIM);
+
+            return spawn_fast_allocator(buyable_spawner, sellable_spawner);
+
+        }
+
         template <class T, class T1>
         static auto spawn_std_shrinker(const data::StorageExtractible<T> view,
                                        const internal_core::HeapOperatable<T1> controller){
@@ -4899,8 +5861,8 @@ namespace dg::heap::resource{
             constexpr auto HEIGHT   = data::StorageExtractible<T>::TREE_HEIGHT; 
 
             auto r_seeker   = seeker::SeekerSpawner::get_right_interval_seeker(view);
-            auto blocker    = dispatcher::DispatcherWrapperSpawner::get_std_wrapper(dispatcher::DispatcherSpawner::get_discrete_block_dispatcher(controller));
-            auto unblocker  = dispatcher::DispatcherWrapperSpawner::get_std_wrapper(dispatcher::DispatcherSpawner::get_discrete_unblock_dispatcher(controller));
+            auto blocker    = dispatcher::DispatcherWrapperSpawner::get_std_wrapper(dispatcher::DispatcherSpawner::get_std_block_dispatcher(controller));
+            auto unblocker  = dispatcher::DispatcherWrapperSpawner::get_std_wrapper(dispatcher::DispatcherSpawner::get_std_unblock_dispatcher(controller));
 
             internal_core::StdShrinker shrinker(std::integral_constant<size_t, HEIGHT>{}, r_seeker, blocker, unblocker);
 
@@ -4910,6 +5872,19 @@ namespace dg::heap::resource{
 
             return rs;
 
+        }
+
+        template <class T, class T1>
+        static auto spawn_std_allocator(std::shared_ptr<internal_core::NoExceptAllocatable<T>> noexcept_allocator,
+                                        std::shared_ptr<internal_core::ExceptAllocatable<T1>> except_allocator){
+            
+            internal_core::StdAllocator allocator(noexcept_allocator, except_allocator);
+            
+            using ins_type  = decltype(allocator);
+            using rs_type   = std::shared_ptr<std::remove_pointer_t<decltype(allocator.to_allocatable())>>;
+
+            rs_type rs      = std::make_unique<ins_type>(allocator);
+            return rs;
         }
 
     };
@@ -5177,11 +6152,13 @@ namespace dg::heap::resource{
 
             std::unique_ptr<core::Allocatable_X> rs{};
             auto cb_handler = [&]<class T, class T1, class T2>(const data::HeapData<T> model, const data::StorageExtractible<T1> view, const internal_core::HeapOperatable<T2> controller){
-                rs = _Virtualizer::spawn_virtual_allocator_x(_Spawner::spawn_direct_allocator(view, controller), _Spawner::spawn_std_shrinker(view, controller));
+                rs  = _Virtualizer::spawn_virtual_allocator_x(_Spawner::spawn_std_allocator(_Spawner::spawn_direct_allocator(view, controller), _Spawner::spawn_fast_allocator(view, controller)), 
+                                                              _Spawner::spawn_std_shrinker(view, controller));
             };
             _Manipulator::get_heap_mvc(cb_handler, buf, id);
 
             return rs;
+
         }
 
     };
