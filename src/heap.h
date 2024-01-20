@@ -18,6 +18,7 @@
 #include <ratio>
 #include <mutex>
 #include <cstring>
+#include "serialization.h"
 
 #ifdef __cpp_consteval
 #define _DG_CONSTEVAL consteval
@@ -29,11 +30,15 @@
 
 namespace dg::heap::limits{
 
-    static inline const auto MIN_HEAP_HEIGHT         = uint8_t{11};
-    static inline const auto MAX_HEAP_HEIGHT         = uint8_t{11};
+    static inline const auto MIN_HEAP_HEIGHT         = uint8_t{12};
+    static inline const auto MAX_HEAP_HEIGHT         = uint8_t{12};
     static inline const auto EXCL_MAX_HEAP_HEIGHT    = uint8_t{MAX_HEAP_HEIGHT + 1};
+}
 
-};
+namespace dg::heap::precond{
+
+    static_assert(std::endian::native == std::endian::little); //REVIEW: to-be-changed 
+}
 
 namespace dg::heap::types{
 
@@ -42,17 +47,14 @@ namespace dg::heap::types{
     using interval_type     = std::pair<store_type, store_type>;
 
     struct Node{
-
         store_type l;
         store_type r;
         store_type c;
         store_type o;
-
     };
 
     using cache_type        = Node;
-
-};
+}
 
 namespace dg::heap::traceback_policy{
     
@@ -86,8 +88,7 @@ namespace dg::heap::traceback_policy{
     static constexpr auto STD_BUCKET_LENGTH          = uint8_t{L_BIT_SPACE + R_BIT_SPACE + C_BIT_SPACE};
     static constexpr auto NEXT_BASE_BUCKET_LENGTH    = uint8_t{L_BIT_SPACE + R_BIT_SPACE + BL_BIT_SPACE};
     static constexpr auto BASE_BUCKET_LENGTH         = uint8_t{BL_BIT_SPACE};
-
-};
+}
 
 namespace dg::heap::memory{
 
@@ -95,13 +96,11 @@ namespace dg::heap::memory{
 
         public:
 
-            virtual ~Allocatable(){}
-            virtual std::optional<void *> malloc(size_t) noexcept = 0; //optional to declare intention (no allocator return nullptr - ethical issues)
+            virtual ~Allocatable() noexcept{}
+            virtual char * malloc(size_t) noexcept = 0;
             virtual void free(void *, size_t) noexcept = 0;
-
     };
-
-};
+}
 
 namespace dg::heap::data{ //model
 
@@ -117,27 +116,22 @@ namespace dg::heap::data{ //model
             static auto& get_boolvector_container() noexcept{
             
                 return T::get_boolvector_container();
-            
             }
 
             static auto& get_node_container() noexcept{
 
                 return T::get_node_container();
-
             }
 
             static auto& get_cache_instance() noexcept{
 
                 return T::get_cache_instance();
-
             }
 
             auto to_heap_data() const noexcept{
 
                 return this;
-
             }
-
     };
 
     template <class T>
@@ -153,39 +147,32 @@ namespace dg::heap::data{ //model
             static store_type get_left_at(size_t idx) noexcept{
 
                 return T::template get_left_at<HEIGHT>(idx);
-
             }
 
             template <size_t HEIGHT>
             static store_type get_right_at(size_t idx) noexcept{
 
                 return T::template get_right_at<HEIGHT>(idx);
-
             }
 
             template <size_t HEIGHT>
             static store_type get_center_at(size_t idx) noexcept{
 
                 return T::template get_center_at<HEIGHT>(idx);
-
             }
 
             template <size_t HEIGHT>
             static store_type get_offset_at(size_t idx) noexcept{
 
                 return T::template get_offset_at<HEIGHT>(idx);
-
             }
 
             auto to_storage_extractible() const noexcept{
 
                 return this;
-
             }
-            
     };
-    
-};
+}
 
 namespace dg::heap::cache{
      
@@ -199,24 +186,19 @@ namespace dg::heap::cache{
             const cache_type& get(size_t key) const noexcept{
 
                 return static_cast<const T *>(this)->get(key);
-
             }
 
             void set(size_t key, const cache_type& val) noexcept{
 
                 static_cast<T *>(this)->set(key, val);
-
             }
 
             CacheControllable * to_cache_controllable() noexcept{
 
                 return this;
-
             }
-
     };
-
-};
+}
 
 namespace dg::heap::market{
 
@@ -231,15 +213,12 @@ namespace dg::heap::market{
             std::optional<interval_type> buy(store_type sz) noexcept{
                 
                 return static_cast<T *>(this)->buy(sz);
-
             }
 
             auto to_buyable() noexcept{
                 
                 return this;
-
             }
-
     };
 
     template <class T>
@@ -253,18 +232,14 @@ namespace dg::heap::market{
             bool sell(const interval_type& intv) noexcept{
 
                 return static_cast<T *>(this)->sell(intv);
-
             }
 
             auto to_sellable() noexcept{
 
                 return this;
-
             }
-
     };
-    
-};
+}
 
 namespace dg::heap::seeker{
 
@@ -278,24 +253,19 @@ namespace dg::heap::seeker{
             std::optional<interval_type> seek(size_t idx) noexcept{
 
                 return static_cast<T *>(this)->seek(idx);
-
             }
 
             template <size_t Val>
             std::optional<interval_type> seek(const std::integral_constant<size_t, Val>& idx) noexcept{
 
                 return static_cast<T *>(this)->seek(idx);
-
             }
 
             auto to_seekable() noexcept{
 
                 return this;
-
             }
-
     };
-
 }
 
 namespace dg::heap::dispatcher{
@@ -310,15 +280,12 @@ namespace dg::heap::dispatcher{
             void dispatch(const interval_type& intv) noexcept{
 
                 static_cast<T *>(this)->dispatch(intv);
-
             }
 
             auto to_dispatchable() noexcept{
 
                 return this;
-
             }
-
     };
 
     template <class T>
@@ -332,18 +299,14 @@ namespace dg::heap::dispatcher{
             void dispatch(Iterator first, Iterator last) noexcept{
 
                 static_cast<T *>(this)->dispatch(first, last);
-
             } 
 
             auto to_dispatchable() noexcept{
 
                 return this;
-
             }
-
     };
-
-};
+}
 
 namespace dg::heap::internal_core{
 
@@ -358,36 +321,30 @@ namespace dg::heap::internal_core{
             static void update(size_t idx) noexcept{
                 
                 T::template update<HEIGHT>(idx);
-
             }
 
             template <size_t HEIGHT>
             static void block(size_t idx) noexcept{
                 
                 T::template block<HEIGHT>(idx);
-
             }
 
             template <size_t HEIGHT>
             static void unblock(size_t idx) noexcept{
                 
                 T::template unblock<HEIGHT>(idx);
-
             }
 
             template <size_t HEIGHT>
             static bool is_blocked(size_t idx) noexcept{
                 
                 return T::template is_blocked<HEIGHT>(idx); 
-
             }
 
             HeapOperatable * to_heap_operatable() const noexcept{
 
                 return this;
-
             }
-
     };
 
     template <class T, bool HAS_EXCEPT>
@@ -401,21 +358,17 @@ namespace dg::heap::internal_core{
             std::optional<interval_type> alloc(store_type sz) noexcept(HAS_EXCEPT){
 
                 return static_cast<T *>(this)->alloc(sz);
-
             }
 
             void free(const interval_type& intv) noexcept(HAS_EXCEPT){
 
                 static_cast<T *>(this)->free(intv);
-
             } 
 
             auto to_allocatable() noexcept{
 
                 return this;
-
             }
-
     };
 
     template <class T>
@@ -434,30 +387,24 @@ namespace dg::heap::internal_core{
             void shrink(store_type virtual_base) noexcept{
 
                 static_cast<T *>(this)->shrink(virtual_base);
-
             }
 
             store_type shrink() noexcept{
 
                 return static_cast<T *>(this)->shrink();
-
             }
 
             void unshrink(store_type virtual_base) noexcept{
 
                 static_cast<T *>(this)->unshrink(virtual_base);
-
             }
 
             auto to_heap_shrinkable() noexcept{
-
+                
                 return this;
-
             }
-            
     };
-
-};
+}
 
 namespace dg::heap::core{
     
@@ -468,7 +415,7 @@ namespace dg::heap::core{
             using store_type        = types::store_type; 
             using interval_type     = types::interval_type; 
 
-            virtual ~Allocatable(){}
+            virtual ~Allocatable() noexcept{}
             virtual std::optional<interval_type> alloc(store_type) noexcept = 0;
             virtual void free(const interval_type&) noexcept = 0;
 
@@ -480,7 +427,7 @@ namespace dg::heap::core{
 
             using store_type    = types::store_type; 
 
-            virtual ~HeapShrinkable(){}
+            virtual ~HeapShrinkable() noexcept{}
             virtual void shrink(store_type) noexcept = 0;
             virtual store_type shrink() noexcept = 0;
             virtual void unshrink(store_type) noexcept = 0;
@@ -490,7 +437,7 @@ namespace dg::heap::core{
     class Allocatable_X: public virtual Allocatable,
                          public virtual HeapShrinkable{};
 
-};
+}
 
 // -- done interface 
 namespace dg::heap::essentials{
@@ -502,7 +449,6 @@ namespace dg::heap::essentials{
     static constexpr auto piecewise_invoke(Functor&& functor, Tup&& tup, const std::index_sequence<IDX...>&) -> decltype(auto){
     
         return functor(std::get<IDX>(tup)...);
-    
     } 
 
     template <class Functor, class Arg>
@@ -512,7 +458,6 @@ namespace dg::heap::essentials{
         const auto idx_seq  = std::make_index_sequence<std::tuple_size_v<rm_ref_type>>{};
 
         return piecewise_invoke(std::forward<Functor>(functor), std::forward<Arg>(arg), idx_seq);
-
     }
     
     template <class Functor, class Arg>
@@ -526,7 +471,6 @@ namespace dg::heap::essentials{
         }(idx_seq);
 
         return {};
-
     }
 
     template <class Tup, class TransformLambda>
@@ -540,7 +484,6 @@ namespace dg::heap::essentials{
         };
 
         return rs(idx_seq);
-
     }
 
     template <class Lambda, class Tup>
@@ -552,9 +495,7 @@ namespace dg::heap::essentials{
         };
 
         return test_lambda(idx_seq);
-
     }
-
 };
 
 namespace dg::heap::types_space{
@@ -718,7 +659,6 @@ namespace dg::heap::utility{
         static constexpr auto is_integer_pair() -> bool{
             return types_space::is_integer_pair_v<T>;
         }
-
     };
 
     struct NumericUtility{
@@ -731,7 +671,6 @@ namespace dg::heap::utility{
         static constexpr auto accumulate(const Ops& ops, IterType first, IterType last) -> decltype(ops(*first, *first)){ //REVIEW: assumption (*, constexprable std::accumulate)
 
             return std::accumulate(std::next(first), last, *first, ops);
-
         }
 
         template <class Ops, class IterType, class StopCond>
@@ -745,18 +684,14 @@ namespace dg::heap::utility{
             } 
             
             return {accumulate(ops, first, llast), llast};
-
         }
-
     };
 
     struct IntegralUtility{
 
         //BEGIN <= key < END
         template <size_t BEGIN, size_t END, class CallBack, class Transform, class KeyType>
-        static constexpr void lb_templatize(const CallBack& cb_lambda, 
-                                            const Transform& transform_lambda, 
-                                            const KeyType& key){
+        static void lb_templatize(const CallBack& cb_lambda, const Transform& transform_lambda, const KeyType& key){
 
             if constexpr(BEGIN + 1 == END){
                 
@@ -768,39 +703,15 @@ namespace dg::heap::utility{
                 constexpr auto MID_VAL  = transform_lambda(std::integral_constant<size_t, MID>{});  
 
                 return (key < MID_VAL) ? lb_templatize<BEGIN, MID>(cb_lambda, transform_lambda, key)
-                                       : lb_templatize<MID, END>(cb_lambda, transform_lambda, key);
-                
+                                       : lb_templatize<MID, END>(cb_lambda, transform_lambda, key);   
             }
-
         }
         
         template <size_t BEGIN, size_t END, class CallBack>
-        static constexpr void templatize(const CallBack& cb_lambda, size_t key){
+        static void templatize(const CallBack& cb_lambda, size_t key){
 
             lb_templatize<BEGIN, END>(cb_lambda, []<size_t Arg>(const std::integral_constant<size_t, Arg>&){return Arg;}, key);
-
         }
-
-        template <class ValType, std::enable_if_t<std::numeric_limits<ValType>::is_integer, bool> = true>
-        static constexpr size_t log2(const ValType& val){
-            
-            constexpr size_t B = 0;
-            constexpr size_t E = sizeof(ValType) * CHAR_BIT;
-            size_t rs{};
-            
-            auto cb_lambda = [&]<size_t Arg>(const std::integral_constant<size_t, Arg>& ic){
-                rs = Arg;
-            };
-
-            auto transform_lambda = []<size_t Arg>(const std::integral_constant<size_t, Arg>& ic){
-                return ValType{1} << Arg;
-            };
-
-            lb_templatize<B, E>(cb_lambda, transform_lambda, val);
-
-            return rs;
-
-        } 
 
         template <size_t RHS, class T, std::enable_if_t<std::numeric_limits<T>::is_integer, bool> = true>
         static constexpr T add(T lhs){
@@ -810,9 +721,7 @@ namespace dg::heap::utility{
             } else{
                 return lhs + RHS;
             }
-
         }  
-
     };
     
     struct HeapEssential{
@@ -820,53 +729,48 @@ namespace dg::heap::utility{
         static constexpr auto parent(size_t idx) -> size_t{
 
             return (idx - 1) >> 1;
-
         }
 
         static constexpr auto left(size_t idx) -> size_t{
 
             return idx * 2 + 1;
-
         }
         
         static constexpr auto right(size_t idx) -> size_t{
 
             return idx * 2 + 2;
-
         }
 
         static constexpr auto base_length(size_t arg_height) -> size_t{
 
             return size_t{1} << (arg_height - 1);
-
         }
 
         static constexpr auto node_count(size_t arg_height) -> size_t{
 
             return (size_t{1} << arg_height) - 1;
-
         }
 
         static constexpr auto idx_to_height(size_t idx) -> size_t{
 
-            return IntegralUtility::log2(idx + 1) + 1;
-            
+            if (idx == 0){
+                return 1;
+            }
+
+            return idx_to_height(parent(idx)) + 1;
         }
 
         template <size_t CUR_HEIGHT>
         static constexpr auto next_height(const std::integral_constant<size_t, CUR_HEIGHT>&){ //
         
             return std::integral_constant<size_t, CUR_HEIGHT + 1>(); 
-        
         }
 
         template <size_t CUR_HEIGHT>
         static constexpr auto prev_height(const std::integral_constant<size_t, CUR_HEIGHT>&){
 
             return std::integral_constant<size_t, CUR_HEIGHT - 1>();
-
         }
-
     };
 
     template <size_t HEIGHT>
@@ -875,63 +779,52 @@ namespace dg::heap::utility{
         static constexpr auto get_non_base_height() -> size_t{
             
             return HEIGHT - 2; 
-
         }   
 
         static constexpr auto get_next_base_height() -> size_t{
 
             return HEIGHT - 1;
-
         } 
 
         static constexpr auto get_height() -> size_t{
 
             return HEIGHT;
-
         }
 
         static constexpr auto is_base(size_t arg_height) -> bool{
 
             return arg_height == get_height();
-
         }
 
         static constexpr auto is_next_base(size_t arg_height) -> bool{
             
             return arg_height == get_next_base_height();
-            
         }
 
         static constexpr auto is_not_base(size_t arg_height) -> bool{
 
             return arg_height <= get_non_base_height();
-
         }
 
         static constexpr auto base_length(size_t arg_height = HEIGHT) -> size_t{
 
             return HeapEssential::base_length(arg_height);
-
         }
 
         static constexpr auto node_count(size_t arg_height = HEIGHT) -> size_t{
 
             return HeapEssential::node_count(arg_height);
-
         }
 
         static constexpr auto height_is_in_range(size_t arg_height) -> bool{
 
             return arg_height <= get_height();
-
         }
 
         static constexpr auto idx_to_offset(size_t idx) -> size_t{
 
             return idx - node_count(get_next_base_height());
-
         }
-        
     };
 
     struct IntervalEssential{
@@ -948,93 +841,78 @@ namespace dg::heap::utility{
         static constexpr auto make(store_type first, store_type last) -> interval_type{
             
             return {first, last};
-
         }
 
         static constexpr auto max_interval() -> interval_type{
 
             return make(0, std::numeric_limits<store_type>::max()); //REVIEW: overflow span size
-
         }
 
         static constexpr auto span_size(const interval_type& interval) -> store_type{
 
             return interval.second - interval.first + 1;
-
         }
 
         static constexpr auto get_interval_beg(const interval_type& data) -> store_type{
             
             return data.first;
-
         } 
 
         static constexpr auto get_interval_end(const interval_type& data) -> store_type{
 
             return data.second;
-
         }
 
         static constexpr auto get_interval_excl_end(const interval_type& data) -> store_type{
 
             return get_interval_end(data) + 1;
-
         }
 
         static constexpr auto is_valid_interval(const interval_type& interval) -> bool{
 
             return interval.second >= interval.first;
-
         }
 
         static constexpr auto is_consecutive(const interval_type& lhs, const interval_type& rhs) -> bool{
 
             return (get_interval_excl_end(lhs) == get_interval_beg(rhs)) || (get_interval_excl_end(rhs) == get_interval_beg(lhs));  
-
         }
 
         static constexpr auto intersect(const interval_type& lhs, const interval_type& rhs) -> interval_type{
 
             return make(std::max(get_interval_beg(lhs), get_interval_beg(rhs)), 
                         std::min(get_interval_end(lhs), get_interval_end(rhs)));
-
         }
 
         static constexpr auto uunion(const interval_type& lhs, const interval_type& rhs) -> interval_type{
 
             return make(std::min(get_interval_beg(lhs), get_interval_beg(rhs)),
                         std::max(get_interval_end(lhs), get_interval_end(rhs)));
-        
         }
 
         static constexpr auto interval_to_relative(const interval_type& interval) -> interval_type{
 
             return make(interval.first, interval.second - interval.first);
-
         }
 
         static constexpr auto relative_to_interval(const interval_type& rel) -> interval_type{
 
             return make(rel.first, rel.first + rel.second);
-
         }
 
         static constexpr auto interval_to_excl_relative(const interval_type& interval) -> interval_type{
 
             return make(interval.first, span_size(interval));
-
         }
 
         static constexpr auto excl_relative_to_interval(const interval_type& rel) -> interval_type{
 
             return make(rel.first, rel.first + rel.second - 1); 
-        
         }
 
         static constexpr auto max_val_before_plus_overflow(store_type value) -> store_type{
 
             return std::numeric_limits<store_type>::max() - value;
-
         } 
         
         static constexpr auto guarded_intersect(const interval_type& lhs, const interval_type& rhs) -> std::optional<interval_type>{
@@ -1044,21 +922,18 @@ namespace dg::heap::utility{
             }
 
             return std::nullopt;
-
         }
         
         static constexpr auto guarded_overlap_union(const interval_type& lhs, const interval_type& rhs) -> std::optional<interval_type>{
 
             return bool{guarded_intersect(lhs, rhs)} ? op_interval_type{uunion(lhs, rhs)} 
                                                      : op_interval_type{std::nullopt};
-
         }
  
         static constexpr auto guarded_consecutive_union(const interval_type& lhs, const interval_type& rhs) -> std::optional<interval_type>{
 
             return is_consecutive(lhs, rhs) ? op_interval_type(uunion(lhs, rhs))
                                             : op_interval_type{std::nullopt};
-
         }   
 
         static constexpr auto guarded_union(const interval_type& lhs, const interval_type& rhs) -> std::optional<interval_type>{
@@ -1068,14 +943,12 @@ namespace dg::heap::utility{
             }
 
             return guarded_overlap_union(lhs, rhs);
-
         }
 
         static constexpr auto guarded_relative_to_interval(const interval_type& rel) -> std::optional<interval_type>{
 
             return (rel.first > max_val_before_plus_overflow(rel.second)) ? op_interval_type{std::nullopt}
                                                                           : op_interval_type{relative_to_interval(rel)};
-
         }
 
 
@@ -1083,57 +956,47 @@ namespace dg::heap::utility{
 
             return (rel.second == 0) ? op_interval_type{std::nullopt} 
                                      : guarded_relative_to_interval(make(rel.first, rel.second - 1)); 
-
         }
 
         static constexpr auto midpoint(const interval_type& val) -> store_type{
 
             return val.first + ((val.second - val.first) >> 1);
-
         } 
 
         static constexpr auto is_left_bound(const interval_type& interval, store_type _midpoint) -> bool{
 
             return interval.second <= _midpoint;
-
         }
 
         static constexpr auto is_right_bound(const interval_type& interval, store_type _midpoint) -> bool{
 
             return interval.first > _midpoint;
-
         }
 
         static constexpr auto left_shrink(const interval_type& interval, store_type _midpoint) -> interval_type{
 
             return make(interval.first, _midpoint);
-
         }
 
         static constexpr auto right_shrink(const interval_type& interval, store_type _midpoint) -> interval_type{
             
             return make(_midpoint + 1, interval.second); //REVIEW: consider excl interval [) to avoid + 1
-
         }
 
         static constexpr auto incl_right_shrink(const interval_type& interval, store_type _midpoint) -> interval_type{
 
             return make(_midpoint, interval.second);
-
         }
 
         static constexpr auto left_interval(const interval_type& val) -> interval_type{
             
             return left_shrink(val, midpoint(val));
-
         }
 
         static constexpr auto right_interval(const interval_type& val) -> interval_type{
 
             return right_shrink(val, midpoint(val));
-
         }
-
     };
 
     //refactoring
@@ -1143,43 +1006,37 @@ namespace dg::heap::utility{
         
         static constexpr auto uunion         = []<class ...Args>(Args&& ...args){return _Base::uunion(std::forward<Args>(args)...);};
         static constexpr auto is_consecutive = []<class ...Args>(Args&& ...args){return _Base::is_consecutive(std::forward<Args>(args)...);};
-
     };
 
     struct MemoryUtility{
 
         template <uintptr_t ALIGNMENT>
-        static inline auto align(void * buf) noexcept -> void *{
+        static inline auto align(char * buf) noexcept -> char *{
             
             constexpr bool is_pow2      = (ALIGNMENT != 0) && ((ALIGNMENT & (ALIGNMENT - 1)) == 0);
             static_assert(is_pow2);
 
             constexpr uintptr_t MASK    = (ALIGNMENT - 1);
             constexpr uintptr_t NEG     = ~MASK;
-            void * rs                   = reinterpret_cast<void *>((reinterpret_cast<uintptr_t>(buf) + MASK) & NEG);
+            char * rs                   = reinterpret_cast<char *>((reinterpret_cast<uintptr_t>(buf) + MASK) & NEG);
 
             return rs;
-
         }
 
-        static inline auto forward_shift(void * buf, size_t sz) noexcept -> void *{
-
-            return reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(buf) + sz);
-
+        static inline auto forward_shift(char * buf, size_t sz) noexcept -> char *{
+ 
+            return buf + sz;
         }
 
-        static inline auto forward_shift(const void * buf, size_t sz) noexcept -> const void *{
+        static inline auto forward_shift(const char * buf, size_t sz) noexcept -> const void *{ 
 
-            return reinterpret_cast<const void *>(reinterpret_cast<uintptr_t>(buf) + sz);
-        
+            return buf + sz;
         }
         
         static inline auto get_distance_vector(const void * _from, const void * _to) noexcept -> intptr_t{
 
             return reinterpret_cast<intptr_t>(_to) - reinterpret_cast<intptr_t>(_from); 
-
         } 
-
     };
 
     template <size_t HEIGHT>
@@ -1192,20 +1049,16 @@ namespace dg::heap::utility{
         static constexpr auto span_size_from_height(size_t arg_height) -> store_type{
 
             return _HeapUtility::base_length() / _HeapUtility::base_length(arg_height);
-
         }
 
         static constexpr auto idx_to_interval(size_t idx) -> interval_type{
 
             if (idx == 0){
-
                 return excl_relative_to_interval(make(0, _HeapUtility::base_length()));
-
             }
 
             return (idx == _HeapUtility::left(_HeapUtility::parent(idx))) ? left_interval(idx_to_interval(_HeapUtility::parent(idx))) 
                                                                           : right_interval(idx_to_interval(_HeapUtility::parent(idx)));
-
         }
 
         template <size_t ARG_HEIGHT>
@@ -1216,9 +1069,7 @@ namespace dg::heap::utility{
             auto offs                   = static_cast<store_type>((idx - popcount) * span); 
 
             return excl_relative_to_interval(make(offs, span));
-            
         }
-
     };
 
     struct LambdaUtility{
@@ -1231,7 +1082,6 @@ namespace dg::heap::utility{
             };
 
             return lambda;
-
         }
 
         template <class T>
@@ -1242,13 +1092,11 @@ namespace dg::heap::utility{
             };
 
             return lambda;
-
         } 
 
         static constexpr auto get_null_lambda(){
 
-            return [](...){};
-
+            return []<class ...Args>(Args&&...){};
         }
 
         template <class ...Ts>
@@ -1263,7 +1111,6 @@ namespace dg::heap::utility{
             };
 
             return exec_lambda;
-
         }
 
         template <class T, class T1>
@@ -1282,13 +1129,10 @@ namespace dg::heap::utility{
                     static_assert(std::is_same_v<ret_type, typename types_space::base_type<ret_type>>); //lambda limitation (or mine) as there's not an intuitive way to return decltype(auto)
 
                     return ret;
-
                 }
-
             };
 
             return rs;
-
         }
 
         template <class T, class T1>
@@ -1308,15 +1152,11 @@ namespace dg::heap::utility{
                     static_assert(std::is_same_v<ret_type, typename types_space::base_type<ret_type>>); //lambda limitation (or mine) as there's not an intuitive way to return decltype(auto)
 
                     return ret;
-
                 }
-
             };
 
             return rs;
-
         }
-
     };
 
     struct IteratorUtility{
@@ -1331,7 +1171,6 @@ namespace dg::heap::utility{
             } else{
                 return std::distance(lhs, rhs) == 0;
             }
-
         }
 
         template <class Iterator>
@@ -1341,7 +1180,6 @@ namespace dg::heap::utility{
             std::advance(first, dist);
 
             return first;
-
         }
 
         template <class Iterator>
@@ -1352,7 +1190,6 @@ namespace dg::heap::utility{
             } else{
                 return prev_last_helper(first, last);
             }
-
         }
 
         template <class Iterator>
@@ -1362,7 +1199,6 @@ namespace dg::heap::utility{
             std::advance(first, dist);
 
             return first;
-
         }
 
         template <class Iterator>
@@ -1371,21 +1207,18 @@ namespace dg::heap::utility{
             Iterator rs{iter};
             iter = std::next(iter);
             return rs;
-            
         }
 
         template <class Iterator>
         static constexpr auto deref(Iterator it) -> decltype(auto){
 
             return *it;
-
         }
 
         template <class Iterator>
         static constexpr auto meat(Iterator it) -> decltype(auto){
 
             return deref(it);
-
         }
 
     };
@@ -1398,7 +1231,6 @@ namespace dg::heap::utility{
         static constexpr auto sanitize(Val data, Val _false_ret, const Validator& test_lambda) -> Val{
 
             return test_lambda(data) ? data : _false_ret; 
-
         } 
 
         //first <= key < last (return first) cmp_ops = (less for asc | greater for desc)
@@ -1410,7 +1242,6 @@ namespace dg::heap::utility{
 
             return terminated_cond ? first : cmp_ops(key, _IteratorUlt::meat(mid)) ? rec_uupper_bound(first, mid, key, cmp_ops)
                                                                                    : rec_uupper_bound(mid, last, key, cmp_ops);
-
         }
 
         //begin <= key < end (return begin) cmp_ops = (less for asc | greater for desc)
@@ -1426,7 +1257,6 @@ namespace dg::heap::utility{
             auto rs       = sanitize(rec_uupper_bound(first, last, key, cmp_ops), last, is_valid);  
 
             return rs;
-
         }
 
         //first < key <= last (return last)
@@ -1438,7 +1268,6 @@ namespace dg::heap::utility{
 
             return terminated_cond ? last : cmp_ops(_IteratorUlt::meat(mid), key) ? rec_lower_bound(mid, last, key, cmp_ops)
                                                                                   : rec_lower_bound(first, mid, key, cmp_ops);
-
         } 
 
         template <class Iterator, class Val, class Ops>
@@ -1449,9 +1278,7 @@ namespace dg::heap::utility{
             }
 
             return cmp_ops(_IteratorUlt::meat(first), key) ? rec_lower_bound(first, last, key, cmp_ops) : first;
-                                                                                     
         }
-
     };
 
     struct IntervalEssential_P: IntervalEssential{
@@ -1467,8 +1294,7 @@ namespace dg::heap::utility{
             auto key    = make(_midpoint, _midpoint);
             auto cmp    = [](const interval_type& lhs, const interval_type& rhs){return get_interval_beg(lhs) < get_interval_beg(rhs);};
             
-            return _AlgoUlt::uupper_bound(first, last, key, cmp); 
-                        
+            return _AlgoUlt::uupper_bound(first, last, key, cmp);                
         } 
 
         template <class Iterator>
@@ -1478,14 +1304,12 @@ namespace dg::heap::utility{
             auto req    = bool{guarded_intersect(_IteratorUlt::meat(tentative_mid), r)};
 
             return req ? tentative_mid : std::next(tentative_mid);
-
         } 
 
         template <class Iterator>
         static constexpr auto seek_incl_right(Iterator first, Iterator last, store_type _midpoint) -> Iterator{
 
             return seek_incl_right(seek_incl_left(first, last, _midpoint), _midpoint);
-
         }
 
         template <class Iterator>
@@ -1495,9 +1319,7 @@ namespace dg::heap::utility{
             auto r = seek_incl_right(l, _midpoint);
 
             return {std::next(l), r};
-
         }
-
     };
 
     struct NodeUtility{
@@ -1510,13 +1332,11 @@ namespace dg::heap::utility{
         static constexpr auto make(store_type l, store_type r, store_type c, store_type o) -> Node{
 
             return Node{l, r, c, o};
-
         }
         
         static constexpr auto to_tuple(const Node& data){
 
             return std::make_tuple(data.l, data.r, data.c, data.o);
-
         } 
         
         template <class Tup>
@@ -1529,29 +1349,21 @@ namespace dg::heap::utility{
             };
 
             return maker(idx_seq);
-
         }
 
         static constexpr auto equal(const Node& lhs, const Node& rhs) -> bool{
 
             if constexpr(types_space::has_no_padding_v<Node>){
-    
                 return std::memcmp(&lhs, &rhs, sizeof(Node)) == 0;
-
             } else{
-
                 return to_tuple(lhs) == to_tuple(rhs);
-
             }
-
         }
         
         static inline void assign(Node& lhs, const Node& rhs){
             
             std::memcpy(&lhs, &rhs, sizeof(Node)); //WARNING: maybe ub (if lhs was not correctly initiated) - as specified by standard
-            
         } 
-
     };
 
     struct ValConstUtility{
@@ -1574,35 +1386,30 @@ namespace dg::heap::utility{
         static inline _DG_CONSTEVAL auto empty() -> store_type{
 
             return ZERO_STORE;
-
         }
    
         template <class T, std::enable_if_t<std::is_same<T, Node>::value, bool> = true>
         static inline _DG_CONSTEVAL auto empty() -> Node{
 
             return _NodeUtility::make(ZERO_STORE, ZERO_STORE, ZERO_STORE, ZERO_STORE);
-
         }
 
         template <class T, std::enable_if_t<std::is_same<T, store_type>::value, bool> = true>
         static inline _DG_CONSTEVAL auto null() -> store_type{
         
             return NULL_STORE;
-        
         }
 
         template <class T, std::enable_if_t<std::is_same<T, Node>::value, bool> = true>
         static inline _DG_CONSTEVAL auto null() -> Node{
 
             return _NodeUtility::make(NULL_STORE, NULL_STORE, NULL_STORE, NULL_STORE); 
-
         }
 
         template <class T, std::enable_if_t<std::is_same<T, store_type>::value, bool> = true>
         static inline _DG_CONSTEVAL auto leaf() -> store_type{
             
             return LEAF_STORE;
-
         }
         
         template <class T, std::enable_if_t<std::is_same<T, Node>::value, bool> = true>
@@ -1612,7 +1419,6 @@ namespace dg::heap::utility{
             store_type offs = _IntervalUtility::get_interval_beg(interval);
 
             return _NodeUtility::make(span, span, span, offs);
-
         }
 
     };
@@ -1628,25 +1434,21 @@ namespace dg::heap::utility{
         static constexpr size_t get_non_base_bit_offset(size_t idx){
 
             return idx * traceback_policy::STD_BUCKET_LENGTH; 
-
         }
 
         static constexpr size_t get_non_base_left_bit_offset(size_t idx){
 
             return _IntegralUtility::add<traceback_policy::L_OFFSET>(get_non_base_bit_offset(idx));
-
         }
 
         static constexpr size_t get_non_base_right_bit_offset(size_t idx){
 
             return _IntegralUtility::add<traceback_policy::R_OFFSET>(get_non_base_bit_offset(idx));
-
         }
 
         static constexpr size_t get_non_base_center_bit_offset(size_t idx){
 
             return _IntegralUtility::add<traceback_policy::C_OFFSET>(get_non_base_bit_offset(idx));
-
         }
 
         static constexpr size_t get_next_base_adjusted_val(){
@@ -1656,31 +1458,26 @@ namespace dg::heap::utility{
             size_t adjusted   = offset - popcount * traceback_policy::NEXT_BASE_BUCKET_LENGTH;
 
             return adjusted;
-
         }
 
         static constexpr size_t get_next_base_bit_offset(size_t idx){
             
             return idx * traceback_policy::NEXT_BASE_BUCKET_LENGTH + get_next_base_adjusted_val();
-
         } 
 
         static constexpr size_t get_next_base_left_bit_offset(size_t idx){
 
             return idx * traceback_policy::NEXT_BASE_BUCKET_LENGTH + (get_next_base_adjusted_val() + traceback_policy::L_OFFSET); //parentheses allow const propagation
-
         }
 
         static constexpr size_t get_next_base_right_bit_offset(size_t idx){
             
             return idx * traceback_policy::NEXT_BASE_BUCKET_LENGTH + (get_next_base_adjusted_val() + traceback_policy::R_OFFSET);
-
         }
 
         static constexpr size_t get_next_base_blocked_bit_offset(size_t idx){
 
             return idx * traceback_policy::NEXT_BASE_BUCKET_LENGTH + (get_next_base_adjusted_val() + traceback_policy::NB_BL_OFFSET);
-
         }
 
         static constexpr size_t get_base_adjusted_val(){
@@ -1690,75 +1487,53 @@ namespace dg::heap::utility{
             size_t adjusted   = offset - popcount * traceback_policy::BASE_BUCKET_LENGTH;
 
             return adjusted;
-
         }
 
         static constexpr size_t get_base_bit_offset(size_t idx){
 
             return idx * traceback_policy::BASE_BUCKET_LENGTH + get_base_adjusted_val();
-
         }
 
         static constexpr size_t get_base_blocked_bit_offset(size_t idx){
 
             return idx * traceback_policy::BASE_BUCKET_LENGTH + (get_base_adjusted_val() + traceback_policy::BB_BL_OFFSET);
-
         }   
 
         template <size_t ARG_HEIGHT>
         static constexpr size_t get_left_offset(size_t idx){
 
             if constexpr(_HeapUtility::is_not_base(ARG_HEIGHT)){
-                
                 return get_non_base_left_bit_offset(idx);
-
             } else if constexpr(_HeapUtility::is_next_base(ARG_HEIGHT)){
-
                 return get_next_base_left_bit_offset(idx);
-
             } else{
-
                 static_assert(FALSE_VAL<>, "unreachable");
                 return {};
-
             }
-
         }
 
         template <size_t ARG_HEIGHT>
         static constexpr size_t get_right_offset(size_t idx){
 
             if constexpr(_HeapUtility::is_not_base(ARG_HEIGHT)){
-
                 return get_non_base_right_bit_offset(idx);
-
             } else if constexpr(_HeapUtility::is_next_base(ARG_HEIGHT)){
-
                 return get_next_base_right_bit_offset(idx);
-
             } else{
-
                 static_assert(FALSE_VAL<>, "unreachable");
                 return {};
-
             }
-
         }
 
         template <size_t ARG_HEIGHT>
         static constexpr size_t get_center_offset(size_t idx){
             
             if constexpr(_HeapUtility::is_not_base(ARG_HEIGHT)){
-
                 return get_non_base_center_bit_offset(idx);
-
             } else{
-
                 static_assert(FALSE_VAL<>, "unreachable");
                 return {};
-
             }
-
         }
 
     };
@@ -1781,29 +1556,35 @@ namespace dg::heap::utility{
             if (this->flag){
                 this->executor();
             }
-
         }
 
         void release() noexcept{
             
             this->flag = false;
-
         }
-
     };
 
     template <class _Ty>
-    struct ReservationVectorInitializer: std::vector<_Ty>{
+    struct ReservedVectorInitializer: std::vector<_Ty>{
 
         using _Base = std::vector<_Ty>;
 
-        ReservationVectorInitializer(size_t sz): _Base(){
+        ReservedVectorInitializer(size_t sz): _Base(){
             _Base::reserve(sz);
         }
-
     };
 
-};
+    template <class Executable>
+    static auto get_backout_executor(Executable executor){
+        
+        static_assert(noexcept(executor()));
+        
+        static auto guard       = int{0u};  
+        auto backout_lambda     = [=](int *) noexcept{executor();};
+
+        return std::unique_ptr<int *, decltype(backout_lambda)>(&guard, backout_lambda);
+    } 
+}
 
 namespace dg::heap::memory{
 
@@ -1819,26 +1600,24 @@ namespace dg::heap::memory{
             
             BumpAllocator(std::unique_ptr<char[]> buf, std::vector<bool> bc, size_t sz): buf(std::move(buf)), bc(std::move(bc)), sz(sz){}
 
-            std::optional<void *> malloc(size_t block_sz) noexcept{
+            char * malloc(size_t block_sz) noexcept{
 
-                std::optional<void *> rs = this->seek(block_sz);
+                char * rs = this->seek(block_sz);
 
                 if (!rs){
-                    return std::nullopt;
+                    return rs;
                 } 
 
-                uintptr_t offs = reinterpret_cast<uintptr_t>(rs.value()) - reinterpret_cast<uintptr_t>(this->buf.get());
+                uintptr_t offs = reinterpret_cast<uintptr_t>(rs) - reinterpret_cast<uintptr_t>(this->buf.get());
                 this->block(static_cast<size_t>(offs), block_sz);
 
                 return rs;
-
             }
 
             void free(void * bbuf, size_t sz) noexcept{
 
                 uintptr_t offs = reinterpret_cast<uintptr_t>(bbuf) - reinterpret_cast<uintptr_t>(this->buf.get());
                 this->unblock(static_cast<size_t>(offs), sz);
-
             }
 
         private:
@@ -1862,10 +1641,9 @@ namespace dg::heap::memory{
                 }
 
                 return std::pair<size_t, size_t>{first, last - first};
-
             } 
 
-            std::optional<void *> seek(size_t block_sz){
+            char * seek(size_t block_sz){
 
                 size_t offs = 0;
 
@@ -1874,7 +1652,7 @@ namespace dg::heap::memory{
                     auto nnext  = seek_next_from(offs);
 
                     if (!nnext){
-                        return std::nullopt;
+                        return nullptr;
                     }
 
                     if (nnext.value().second >= block_sz){
@@ -1882,27 +1660,18 @@ namespace dg::heap::memory{
                     } 
 
                     offs = nnext.value().first + nnext.value().second;
-
                 }
-
             }
 
             void block(size_t offs, size_t block_sz){
 
-                for (size_t i = offs; i < offs + block_sz; ++i){
-                    bc[i] = false;
-                }
-
+                std::fill(bc.begin() + offs, bc.begin() + offs + block_sz, false);
             }
 
             void unblock(size_t offs, size_t block_sz){
 
-                for (size_t i = offs; i < offs + block_sz; ++i){
-                    bc[i] = true;
-                }
-
+                std::fill(bc.begin() + offs, bc.begin() + offs + block_sz, true);
             }
-
     };
 
     class MutexControlledAllocator: public Allocatable{
@@ -1916,20 +1685,17 @@ namespace dg::heap::memory{
 
             MutexControlledAllocator(std::unique_ptr<Allocatable> allocator): allocator(std::move(allocator)), mtx(){}
 
-            std::optional<void *> malloc(size_t block_sz) noexcept{
+            char * malloc(size_t block_sz) noexcept{
 
-                std::lock_guard<std::mutex> _guard(this->mtx); //REVIEW: mtx is not noexcept qualified (weird!)
+                std::lock_guard<std::mutex> _guard(this->mtx);
                 return this->allocator->malloc(block_sz);
-
             }
 
             void free(void * buf, size_t block_sz) noexcept{
                 
                 std::lock_guard<std::mutex> _guard(this->mtx);
                 this->allocator->free(buf, block_sz);
-
             }
-
     };
 
     struct AllocatorInitializer{
@@ -1949,77 +1715,15 @@ namespace dg::heap::memory{
         
     };
 
-    struct SyncedEndiannessService{
-        
-        static constexpr auto is_native_big      = bool{std::endian::native == std::endian::big};
-        static constexpr auto is_native_little   = bool{std::endian::native == std::endian::little};
-        static constexpr auto precond            = bool{(is_native_big ^ is_native_little) != 0};
-        static constexpr auto deflt              = std::endian::little; 
-        static constexpr auto native_uint8       = is_native_big ? uint8_t{0} : uint8_t{1}; 
-
-        static_assert(precond); //xor
-
-        template <class T, std::enable_if_t<std::is_arithmetic_v<T>, bool> = true>
-        static constexpr T bswap(T value){
-            
-            constexpr auto LOWER_BIT_MASK   = ~((char) 0u);
-            constexpr auto idx_seq          = std::make_index_sequence<sizeof(T)>();
-            T rs{};
-
-            [&]<size_t ...IDX>(const std::index_sequence<IDX...>&){
-                (
-                    [&](size_t){
-
-                        rs <<= CHAR_BIT;
-                        rs |= value & LOWER_BIT_MASK;
-                        value >>= CHAR_BIT;
-
-                    }(IDX), ...
-                );
-            }(idx_seq);
-
-            return rs;
-
-        }
-
-        template <class T, std::enable_if_t<std::is_arithmetic_v<T>, bool> = true>
-        static inline void dump(void * dst, T data) noexcept{    
-
-            if constexpr(std::endian::native != deflt){
-                data = bswap(data);
-            }
-
-            std::memcpy(dst, &data, sizeof(T));
-
-        }
-
-        template <class T, std::enable_if_t<std::is_arithmetic_v<T>, bool> = true>
-        static inline T load(void * src) noexcept{
-            
-            T rs{};
-            std::memcpy(&rs, src, sizeof(T));
-
-            if constexpr(std::endian::native != deflt){
-                rs = bswap(rs);
-            }
-
-            return rs;
-
-        }
-
-        static inline const auto bswap_lambda   = []<class ...Args>(Args&& ...args){return bswap(std::forward<Args>(args)...);}; 
-
-    };
-
     struct MemoryAcquirer{
 
-        static inline auto acquire(std::shared_ptr<Allocatable> allocator, size_t sz) noexcept -> std::shared_ptr<char[]>{
+        static inline auto acquire(std::shared_ptr<Allocatable> allocator, size_t sz) noexcept -> std::shared_ptr<char[]>{ //REVIEW: not noexcept qualified due to shared_ptr
             
             if (!allocator){
                 return {};
             }
 
-            std::optional<void *> buf  = allocator->malloc(sz);
+            char * buf  = allocator->malloc(sz);
 
             if (!buf){
                 return {};
@@ -2028,7 +1732,7 @@ namespace dg::heap::memory{
             auto destructor     = [=](char * bbuf){allocator->free(bbuf, sz);};
             using rs_type       = std::unique_ptr<char[], decltype(destructor)>;
 
-            return rs_type{new (buf.value()) char[sz], destructor};
+            return rs_type{buf, destructor};
         }
     };
 
@@ -2036,7 +1740,7 @@ namespace dg::heap::memory{
         
         using _Acquirer = MemoryAcquirer;
         
-        static inline std::shared_ptr<Allocatable> reservoir{};
+        static inline std::shared_ptr<Allocatable> reservoir{}; //REVIEW: should be VM? 
 
         static inline auto buy(size_t block_sz) -> std::unique_ptr<char[]>{
 
@@ -2100,12 +1804,10 @@ namespace dg::heap::memory{
 
     struct LifeTimeTracker{
 
-        //REVIEW: reimplmenetation - brief and concise 
-
         private:
 
             static inline std::unordered_map<uintptr_t, void *> objects{};
-            static inline std::mutex mtx{}; //should be atomic swap 
+            static inline std::mutex mtx{};
 
         public:
 
@@ -2113,7 +1815,6 @@ namespace dg::heap::memory{
 
                 std::lock_guard<std::mutex> guard(mtx);
                 objects.reserve(sz);
-
             }
             
             template <class T>
@@ -2121,7 +1822,6 @@ namespace dg::heap::memory{
 
                 std::lock_guard<std::mutex> guard(mtx);
                 objects[reinterpret_cast<uintptr_t>(obj)] = static_cast<void *>(obj);
-
             } 
 
             template <class T>
@@ -2135,18 +1835,14 @@ namespace dg::heap::memory{
                 }
 
                 return static_cast<T *>(bucket->second); 
-
             }
 
             static inline void end_lifetime(void * addr) noexcept{
                 
                 std::lock_guard<std::mutex> guard(mtx);
                 objects.erase(reinterpret_cast<uintptr_t>(addr));
-
             }
-
     };
-
 }
 
 namespace dg::heap::seeker{
@@ -2338,7 +2034,6 @@ namespace dg::heap::seeker{
                 _IntegralUlt::templatize<BEG_HEIGHT, EXCL_HEIGHT>(cb_lambda, _HeapUlt::idx_to_height(idx)); // -- improvement required
                 
                 return rs;
-
             }   
 
             template <size_t IDX>
@@ -2355,9 +2050,7 @@ namespace dg::heap::seeker{
                 } 
 
                 return rs;
-
             }
-
     };
 
     template <class T>
@@ -2390,14 +2083,13 @@ namespace dg::heap::seeker{
 
                 auto cb_lambda              = [=, &rs]<size_t ARG_HEIGHT>(const std::integral_constant<size_t, ARG_HEIGHT>&){
                     auto span   = _Extractor::template get_right_at<ARG_HEIGHT>(idx);
-                    auto offs   = _IntvUlt::get_interval_excl_end(_IntvUlt::idx_to_interval<ARG_HEIGHT>(idx)) - span;
+                    auto offs   = _IntvUlt::get_interval_excl_end(_IntvUlt::template idx_to_interval<ARG_HEIGHT>(idx)) - span;
                     rs          = _IntvUlt::guarded_excl_relative_to_interval(_IntvUlt::make(offs, span));
                 };
 
                 _IntegralUlt::templatize<BEG_HEIGHT, EXCL_HEIGHT>(cb_lambda, _HeapUlt::idx_to_height(idx));
 
                 return rs;
-
             }
 
             template <size_t IDX>
@@ -2415,7 +2107,6 @@ namespace dg::heap::seeker{
                 } 
 
                 return rs;
-
             }
     };
 
@@ -2431,7 +2122,6 @@ namespace dg::heap::seeker{
 
             rs_type rs      = std::unique_ptr<obj_type>(new obj_type(ins));
             return rs;
-
         }
 
         template <class T>
@@ -2444,9 +2134,7 @@ namespace dg::heap::seeker{
 
             rs_type rs      = std::unique_ptr<obj_type>(new obj_type(ins));
             return rs;
-
         }
-
     };
 
     struct SeekerLambdanizer{
@@ -2458,7 +2146,6 @@ namespace dg::heap::seeker{
             auto rs     = [=]{return seeker->seek(root);};
 
             return rs;
-
         }
 
         template <class T>
@@ -2468,9 +2155,7 @@ namespace dg::heap::seeker{
             auto rs     = [=]{return _Algo::get(*seeker->to_seekable());}; //
 
             return rs;
-
         } 
-
     };
 
 }
@@ -2496,15 +2181,10 @@ namespace dg::heap::interval_ops{
             store_type rl = extractor.template get_left_at<ARG_HEIGHT + 1>(_HeapUtility::right(idx)); 
 
             if ((ll == SPAN_SZ) && (rl != 0)){
-
                 r_cb(ll + rl);
-
             } else{
-
                 l_cb(ll);
-
             }
-
         } 
 
         template <size_t ARG_HEIGHT, class l_cb_lambda, class r_cb_lambda, class T>
@@ -2519,15 +2199,10 @@ namespace dg::heap::interval_ops{
             store_type lr = extractor.template get_right_at<ARG_HEIGHT + 1>(_HeapUtility::left(idx)); 
 
             if ((rr == SPAN_SZ) && (lr != 0)){
-
                 l_cb(rr + lr);
-
             } else{
-
                 r_cb(rr);
-
             }
-
         }
 
         template <size_t ARG_HEIGHT, class l_cb_lambda, class mid_cb_lambda, class r_cb_lambda, class T>
@@ -2542,21 +2217,13 @@ namespace dg::heap::interval_ops{
             store_type mid = extractor.template get_right_at<ARG_HEIGHT + 1>(_HeapUtility::left(idx)) + extractor.template get_left_at<ARG_HEIGHT + 1>(_HeapUtility::right(idx));
             
             if ((mid > lc) && (mid > rc)){
-
                 mid_cb(mid); 
-
             } else if (rc > lc){
-
                 r_cb(rc);
-
             } else{
-
                 l_cb(lc);
-
             }
-
         }
-
     };
 
     template <size_t HEIGHT>
@@ -2591,28 +2258,19 @@ namespace dg::heap::interval_ops{
                 auto midpoint = _IntervalUtility::midpoint(interval);
 
                 if (_IntervalUtility::is_left_bound(key_interval, midpoint)){
-
                     apply<ARG_HEIGHT + 1>(_HeapUtility::left(idx), _IntervalUtility::left_shrink(interval, midpoint), key_interval, stop_cond, apply_cb, post_cb, right_excl_cb, left_excl_cb); //memory bottleneck or computation - need profiling
                     left_excl_cb(HEIGHT_IC, interval, idx);
-
                 } else if (_IntervalUtility::is_right_bound(key_interval, midpoint)){
-
                     apply<ARG_HEIGHT + 1>(_HeapUtility::right(idx), _IntervalUtility::right_shrink(interval, midpoint), key_interval, stop_cond, apply_cb, post_cb, right_excl_cb, left_excl_cb);
                     right_excl_cb(HEIGHT_IC, interval, idx);
-
                 } else{
-
                     apply<ARG_HEIGHT + 1>(_HeapUtility::left(idx), _IntervalUtility::left_shrink(interval, midpoint), _IntervalUtility::left_shrink(key_interval, midpoint), stop_cond, apply_cb, post_cb, right_excl_cb, left_excl_cb);
                     apply<ARG_HEIGHT + 1>(_HeapUtility::right(idx), _IntervalUtility::right_shrink(interval, midpoint), _IntervalUtility::right_shrink(key_interval, midpoint), stop_cond, apply_cb, post_cb, right_excl_cb, left_excl_cb);
-
                 }
 
                 post_cb(HEIGHT_IC, interval, idx);
-                
             }
-
         }
-
     };
     
     template <size_t HEIGHT>
@@ -2636,19 +2294,15 @@ namespace dg::heap::interval_ops{
                 constexpr auto HEIGHT_IC = std::integral_constant<size_t, ARG_HEIGHT>(); 
 
                 if (stop_cond(HEIGHT_IC, interval, idx)){
-
                     cb_lambda(HEIGHT_IC, interval, idx);
                     return;
-
                 }
 
                 traverse<ARG_HEIGHT + 1>(_HeapUtility::left(idx),  _IntervalUtility::left_interval(interval),  cb_lambda, post_cb_lambda, stop_cond);
                 traverse<ARG_HEIGHT + 1>(_HeapUtility::right(idx), _IntervalUtility::right_interval(interval), cb_lambda, post_cb_lambda, stop_cond);
 
                 post_cb_lambda(HEIGHT_IC, interval, idx);
-
             }
-
         } 
 
         template <class CallBack, class PostCallBack, class StopCond>
@@ -2660,9 +2314,7 @@ namespace dg::heap::interval_ops{
             constexpr auto START_HEIGHT = _HeapUtility::idx_to_height(START_IDX);
 
             traverse<START_HEIGHT>(START_IDX, _IntervalUtility::idx_to_interval(START_IDX), cb_lambda, post_cb_lambda, stop_cond);
-
         }
-
     };
 
     struct IntervalApplierLambdaGenerator{
@@ -2690,9 +2342,7 @@ namespace dg::heap::interval_ops{
             };
 
             return rs;
-
         } 
-
     };
 
 };
@@ -2719,13 +2369,12 @@ namespace dg::heap::batch_interval_ops{
             std::sort(first, last, cmp_lambda);
 
             return {first, last};
-
         }
 
         template <class _Iterator>
         static constexpr auto inplace_shrink(_Iterator first, _Iterator last) -> std::pair<_Iterator, _Iterator>{
 
-            using element_type = typename std::remove_reference_t<decltype(_IterUlt::meat(std::declval<_Iterator>()))>; 
+           using element_type = typename std::remove_reference_t<decltype(_IterUlt::meat(std::declval<_Iterator>()))>; 
 
             auto ptr        = first;
             auto i          = first;
@@ -2740,16 +2389,13 @@ namespace dg::heap::batch_interval_ops{
             } 
 
             return {first, ptr}; 
-
         } 
 
         template <class _Iterator>
         static constexpr auto inplace_assort(_Iterator first, _Iterator last) -> std::pair<_Iterator, _Iterator>{
 
             return utility::piecewise_invoke(inplace_shrink<_Iterator>, inplace_sort(first, last));
-
         }
-        
     };
 
     template <size_t HEIGHT>
@@ -2807,11 +2453,8 @@ namespace dg::heap::batch_interval_ops{
                 }
 
                 post_cb(HEIGHT_IC, interval, idx);
-
             }
-
         }
-
     };
 
     struct IntervalApplierLambdaGenerator{
@@ -2833,11 +2476,10 @@ namespace dg::heap::batch_interval_ops{
             };
 
             return rs;
-
         }
     };
 
-};
+}
 
 namespace dg::heap::interval_ops_injection{
 
@@ -2874,7 +2516,6 @@ namespace dg::heap::interval_ops_injection{
         static constexpr auto customize(const T& stop_cond){
 
             return _LambdaUlt::bind_filter_n_deflate(stop_cond, get_filter());
-
         }
 
     };
@@ -2896,7 +2537,6 @@ namespace dg::heap::interval_ops_injection{
             };
 
             return rs;
-
         }
 
         static constexpr auto get_filter(){
@@ -2916,7 +2556,6 @@ namespace dg::heap::interval_ops_injection{
         static constexpr auto customize(const T& stop_cond){
 
             return _LambdaUlt::bind_filter_n_deflate(stop_cond, get_filter());
-            
         }
 
     };
@@ -2937,7 +2576,6 @@ namespace dg::heap::interval_ops_injection{
             }; 
 
             return rs;
-
         } 
 
         template <class T>
@@ -2950,7 +2588,6 @@ namespace dg::heap::interval_ops_injection{
             };
 
             return rs;
-
         } 
 
         template <class T>
@@ -2963,7 +2600,6 @@ namespace dg::heap::interval_ops_injection{
             };
 
             return rs;
-
         }
         
         template <class T>
@@ -2976,9 +2612,7 @@ namespace dg::heap::interval_ops_injection{
             };
 
             return rs;
-
         }
-
     };
 
     struct FilterLambdaGenerator{
@@ -3003,7 +2637,6 @@ namespace dg::heap::interval_ops_injection{
             };
 
             return transformed;
-
         }
 
         static constexpr auto left(){
@@ -3021,7 +2654,6 @@ namespace dg::heap::interval_ops_injection{
             };
 
             return transformed;
-
         }
 
         static constexpr auto intersect(const interval_type& interval){
@@ -3037,7 +2669,6 @@ namespace dg::heap::interval_ops_injection{
             };
 
             return transformed;
-            
         }
 
         static constexpr auto extract_interval(){
@@ -3047,11 +2678,9 @@ namespace dg::heap::interval_ops_injection{
                                                      size_t){
             
                 return std::make_tuple(intv);
-
             };
 
             return transformed;
-
         }
 
         static constexpr auto extract_height_v(){
@@ -3061,16 +2690,13 @@ namespace dg::heap::interval_ops_injection{
                                                       size_t){
             
                 return std::make_tuple(ARG_HEIGHT);
-
             };
 
             return transformed;
-
         }
-
     };
 
-};
+}
 
 namespace dg::heap::dispatcher{
 
@@ -3101,9 +2727,7 @@ namespace dg::heap::dispatcher{
                                                            _LambdaGen::get_update_lambda(ops),
                                                            _LambdaUlt::get_null_lambda(),
                                                            _LambdaUlt::get_null_lambda());
-
         } 
-
     };
     
     struct DiscreteUnblockDispatcher{
@@ -3133,9 +2757,7 @@ namespace dg::heap::dispatcher{
                                                            _LambdaGen::get_update_lambda(ops),
                                                            _LambdaUlt::get_null_lambda(),
                                                            _LambdaUlt::get_null_lambda());
-
         }
-
     };
 
     struct PartialUnblockDispatcher{
@@ -3168,9 +2790,7 @@ namespace dg::heap::dispatcher{
             auto upstream_worker_lambda     = _IntervalApplierLambda::get(std::integral_constant<size_t, HEIGHT>{}, _StopCondGen::customize(is_blocked_lambda), transfer_lambda, post_lambda, _LambdaUlt::get_null_lambda(), _LambdaUlt::get_null_lambda());
 
             upstream_worker_lambda(std::integral_constant<size_t, START_HEIGHT>{}, key_interval, START_IDX);
-
         }
-
     };
 
     struct StdDispatcher: private DiscreteBlockDispatcher, private PartialUnblockDispatcher{
@@ -3180,7 +2800,6 @@ namespace dg::heap::dispatcher{
 
         using _Blocker::dispatch_block;
         using _Unblocker::dispatch_unblock;
-
     };
 
     struct DiscreteDispatcher: private DiscreteBlockDispatcher, private DiscreteUnblockDispatcher{
@@ -3190,7 +2809,6 @@ namespace dg::heap::dispatcher{
 
         using _Blocker::dispatch_block;
         using _Unblocker::dispatch_unblock;
-        
     }; 
 
     //REVIEW: refactoring required (rtti required - reduce templates)
@@ -3228,7 +2846,6 @@ namespace dg::heap::dispatcher{
             };
 
             return rs;
-
         }
 
         template <class T, class Iterator>
@@ -3249,9 +2866,7 @@ namespace dg::heap::dispatcher{
                                                         _LambdaGen::get_update_lambda(ops),
                                                         _LambdaUlt::get_null_lambda(),
                                                         _LambdaUlt::get_null_lambda());
-
         }
-
     };
 
     //REVIEW: refactoring required (rtti required - reduce templates)
@@ -3291,7 +2906,6 @@ namespace dg::heap::dispatcher{
             };
 
             return rs;
-
         }
 
         static constexpr auto get_shrink_filter(){
@@ -3308,7 +2922,6 @@ namespace dg::heap::dispatcher{
             };
 
             return rs;
-
         }
 
         template <class T, class Iterator>
@@ -3346,9 +2959,7 @@ namespace dg::heap::dispatcher{
                                                                        _LambdaUlt::get_null_lambda());
             
             upstream_worker(std::integral_constant<size_t, START_HEIGHT>{}, START_INTV, START_IDX, first, last);
-
         } 
-
     };
 
     struct BatchDispatcher: private DiscreteBatchBlockDispatcher, private PartialBatchUnblockDispatcher{
@@ -3358,7 +2969,6 @@ namespace dg::heap::dispatcher{
 
         using _Blocker::dispatch_block;
         using _Unblocker::dispatch_unblock;
-
     }; 
 
     struct DispatcherSpawner{
@@ -3436,7 +3046,6 @@ namespace dg::heap::dispatcher{
 
             return lambda;
         }
-
     };
 
     template <class Lambda>
@@ -3456,9 +3065,7 @@ namespace dg::heap::dispatcher{
                 
                 static_assert(noexcept(this->dispatcher_ins(intv)));
                 this->dispatcher_ins(intv);
-
             }
-
     };
 
     template <class Lambda>
@@ -3477,9 +3084,7 @@ namespace dg::heap::dispatcher{
                 
                 static_assert(noexcept(this->dispatcher_ins(first, last)));
                 this->dispatcher_ins(first, last);
-                
             }
-
     };
 
     struct DispatcherWrapperSpawner{
@@ -3494,10 +3099,8 @@ namespace dg::heap::dispatcher{
             
             return rs;
         }
-
     };
-
-};
+}
 
 namespace dg::heap::instantiator{
 
@@ -3520,9 +3123,7 @@ namespace dg::heap::instantiator{
             auto post_ins           = _LambdaUlt::void_aggregate(_LambdaGen::get_unblock_lambda(ops), _LambdaGen::get_update_lambda(ops));
 
             _Traverser::traverse(leaf_ins, post_ins, stop_cond);
-
         }
-
     };
     
     struct IntervalDataTransferer{
@@ -3544,12 +3145,10 @@ namespace dg::heap::instantiator{
             auto cb_lambda                      = _LambdaUlt::bind_filter_n_deflate(dispatcher, _LambdaFil::extract_interval()); 
 
             _Traverser::traverse(cb_lambda, _LambdaUlt::get_null_lambda(), _LambdaGen::get_is_blocked_lambda(transferer));
-
         }
-
     };
     
-};
+}
 
 namespace dg::heap::market{
     
@@ -3582,7 +3181,6 @@ namespace dg::heap::market{
                 this->product   = _IntervalUtility::make(_IntervalUtility::get_interval_excl_end(rs), _IntervalUtility::get_interval_end(this->product)); //
 
                 return rs;
-
             }
 
             template <class CollectorType>
@@ -3597,11 +3195,8 @@ namespace dg::heap::market{
                     }
 
                     this->is_decommissioned = true; 
-
                 }
-    
             }
-
     };
 
     class StdBuyAgent: public Sellable<StdBuyAgent>{ 
@@ -3626,7 +3221,7 @@ namespace dg::heap::market{
                     return false;
                 }
                 
-                this->_container.push_back(product); //REVIEW: implementation defined (push_back is not noexcept qualified)
+                this->_container.push_back(product);
                 return true;
 
             }
@@ -3638,9 +3233,7 @@ namespace dg::heap::market{
                     
                     collector(this->_container.begin(), this->_container.end());
                     this->is_decomissioned = true;
-
                 }
-
             }
 
     };
@@ -3666,6 +3259,8 @@ namespace dg::heap::market{
 
             std::optional<interval_type> buy(store_type sz) noexcept{
                 
+                assert(sz != 0);
+                
                 while (true){
 
                     if (auto rs = this->sale_agent.buy(sz); rs){
@@ -3678,9 +3273,7 @@ namespace dg::heap::market{
 
                     this->decomission_sale_agent();
                     this->spawn_sale_agent();
-
                 }
-
             }
 
             template <class CollectorType>
@@ -3688,7 +3281,6 @@ namespace dg::heap::market{
 
                 this->exhaust();
                 this->buy_agent.decomission(std::forward<CollectorType>(collector));
-
             }
 
         private:
@@ -3696,14 +3288,12 @@ namespace dg::heap::market{
             bool has_next(){
             
                 return !this->products.empty();
-            
             }
 
             void spawn_sale_agent(){
 
                 this->sale_agent = StdSaleAgent(this->products.back());
                 this->products.pop_back();
-
             }
 
             void decomission_sale_agent(){
@@ -3715,7 +3305,6 @@ namespace dg::heap::market{
                 };
 
                 this->sale_agent.decomission(transfer_lambda);
-                
             }
 
             void exhaust(){
@@ -3726,9 +3315,7 @@ namespace dg::heap::market{
                     spawn_sale_agent();
                     decomission_sale_agent();
                 }
-
             }
-
     };
 
     struct AgencyCenter{
@@ -3741,33 +3328,39 @@ namespace dg::heap::market{
 
         template <class _Collector>         
         static inline auto get_std_sale_agent(_Collector collector, interval_type valid_interval) -> StdSaleAgentIntf{
-            
+
+            auto resource_flag  = std::make_shared<bool>(false);
             auto cleanup_lambda = [=](StdSaleAgent * ins){
-                ins->decomission(collector);
+                if (*resource_flag){
+                    ins->decomission(collector);
+                }
                 delete ins;
             };  
 
             using rs_type   = std::unique_ptr<StdSaleAgent, decltype(cleanup_lambda)>;
-            auto rs         = rs_type{new StdSaleAgent(valid_interval), cleanup_lambda}; //REIVEW: leak (implementation defined)
+            auto rs         = StdSaleAgentIntf{rs_type{new StdSaleAgent(valid_interval), cleanup_lambda}}; 
+            *resource_flag  = true;
 
             return rs;
-
         }
 
         template <class _Collector>
         static inline auto get_std_buy_agent(_Collector collector, size_t buying_limits) -> StdBuyAgentIntf{
 
+            auto resource_flag  = std::make_shared<bool>(false);
             auto cleanup_lambda = [=](StdBuyAgent * ins){
-                ins->decomission(collector);
+                if (*resource_flag){
+                    ins->decomission(collector);
+                }
                 delete ins;
             };
 
-            using _Init     = utility::ReservationVectorInitializer<interval_type>;
+            using _Init     = utility::ReservedVectorInitializer<interval_type>;
             using rs_type   = std::unique_ptr<StdBuyAgent, decltype(cleanup_lambda)>;
-            auto rs         = rs_type{new StdBuyAgent(_Init(buying_limits)), cleanup_lambda}; //REIVEW: leak (implmenetation defined)
-
+            auto rs         = StdBuyAgentIntf{rs_type{new StdBuyAgent(_Init(buying_limits)), cleanup_lambda}};
+            *resource_flag  = true;
+            
             return rs;
-
         }
 
         template <class _Collector>
@@ -3775,22 +3368,24 @@ namespace dg::heap::market{
 
             assert(valid_intervals.size() != 0);
 
+            auto resource_flag  = std::make_shared<bool>(false);
             auto cleanup_lambda = [=](FragmentedSaleAgent * ins){
-                ins->decomission(collector);
+                if (*resource_flag){
+                    ins->decomission(collector);
+                }
                 delete ins;
             };
 
-            using _Init     = utility::ReservationVectorInitializer<interval_type>;
+            using _Init     = utility::ReservedVectorInitializer<interval_type>;
             using rs_type   = std::unique_ptr<FragmentedSaleAgent, decltype(cleanup_lambda)>;
 
             StdBuyAgent buy_agent(_Init(valid_intervals.size()));
             StdSaleAgent sale_agent(valid_intervals.back());
             valid_intervals.pop_back();
+            auto rs         = FragmentedSaleAgentIntf{rs_type{new FragmentedSaleAgent(std::move(sale_agent), std::move(buy_agent), std::move(valid_intervals)), cleanup_lambda}};
+            *resource_flag  = true;
 
-            auto rs         = rs_type{new FragmentedSaleAgent(std::move(sale_agent), std::move(buy_agent), std::move(valid_intervals)), cleanup_lambda}; //REVIEW: leak (implementation defined) 
-
-            return rs;
-
+            return rs; 
         }
 
     }; 
@@ -3814,7 +3409,6 @@ namespace dg::heap::market{
             };  
 
             return collector_lambda;
-
         }
 
         template <class T>
@@ -3830,7 +3424,6 @@ namespace dg::heap::market{
             };
 
             return collector_lambda;
-
         }
 
     };
@@ -3845,7 +3438,7 @@ namespace dg::heap::market{
         static constexpr size_t DEFAULT_BUYING_LIMIT = size_t{1} << 20;
 
         template <class T>
-        static inline auto get_sale_broker(const internal_core::HeapOperatable<T> ops, interval_type valid_interval){ //break broker semantics - usually responsible for both buy and sell
+        static inline auto get_sale_broker(const internal_core::HeapOperatable<T> ops, interval_type valid_interval){
             
             auto block_lambda   = [=, dispatcher = _DispatcherSpawner::get_std_block_dispatcher(ops)]{dispatcher(valid_interval);};
             auto unblock_lambda = [=, dispatcher = _DispatcherSpawner::get_std_unblock_dispatcher(ops)]{dispatcher(valid_interval);};
@@ -3858,7 +3451,6 @@ namespace dg::heap::market{
             backout_plan.release();
 
             return rs;
-
         }
 
         template <class T>
@@ -3878,16 +3470,13 @@ namespace dg::heap::market{
             backout_plan.release();
 
             return rs;            
-
         }
 
         template <class T>
         static inline auto get_buy_broker(const internal_core::HeapOperatable<T> ops, size_t buying_limits = DEFAULT_BUYING_LIMIT){
 
             return _AgencyCenter::get_std_buy_agent(IRS::get_fragmented_collector(ops), buying_limits);
-
         }
-    
     };
 
     struct BrokerSpawner{
@@ -3911,11 +3500,9 @@ namespace dg::heap::market{
                 }
 
                 return rs_type{_BrokerCenter::get_batch_sale_broker(heap_ops, std::move(intervals))};
-            
             };
 
             return spawner;
-
         }
 
         template <class T, class Generator, std::enable_if_t<std::is_same_v<decltype(std::declval<Generator>()()), std::optional<interval_type>>, bool> = true>
@@ -3933,11 +3520,9 @@ namespace dg::heap::market{
                 }
 
                 return rs_type{_BrokerCenter::get_sale_broker(heap_ops, interval.value())};
-
             };
 
             return spawner;
-        
         }
 
         template <class T>
@@ -3948,12 +3533,9 @@ namespace dg::heap::market{
             };
 
             return spawner;
-
         }
-
     };
-
-};
+}
 
 namespace dg::heap::cache{
     
@@ -3977,14 +3559,16 @@ namespace dg::heap::cache{
                                                  capacity(capacity){
                 
                 assert(capacity != 0);
-                _CacheObject::reserve(capacity); //REVIEW: not strong guarantee - need revision 
+                _CacheObject::reserve(capacity);
             }
 
             const cache_type& get(size_t key) const noexcept{
 
-                auto iter = _CacheObject::find(key);
+                if (auto iter = _CacheObject::find(key); iter != _CacheObject::end()){
+                    return iter->second;
+                }
                 
-                return (iter == _CacheObject::end()) ? NULL_ADDR : iter->second; 
+                return NULL_ADDR; 
             }
 
             void set(size_t key, const cache_type& val) noexcept{
@@ -3996,7 +3580,6 @@ namespace dg::heap::cache{
                 _CacheObject::insert_or_assign(key, val);
             }
     }; 
-
 };
 
 namespace dg::heap::top_impl{
@@ -4008,55 +3591,46 @@ namespace dg::heap::top_impl{
         static constexpr auto get_left_at(container_type arr, size_t idx) -> decltype(auto){
 
             return arr[idx].l; 
-
         }
 
         static constexpr auto get_right_at(container_type arr, size_t idx) -> decltype(auto){
 
             return arr[idx].r;
-
         }
 
         static constexpr auto get_center_at(container_type arr, size_t idx) -> decltype(auto){
 
             return arr[idx].c;
-
         }
 
         static constexpr auto get_offset_at(container_type arr, size_t idx) -> decltype(auto){
 
             return arr[idx].o;
-
         }
 
         template <class Val>
         static constexpr void set_left_at(container_type arr, size_t idx, Val&& val){
 
             arr[idx].l = std::forward<Val>(val);
-
         }
 
         template <class Val>
         static constexpr void set_right_at(container_type arr, size_t idx, Val&& val){
 
             arr[idx].r = std::forward<Val>(val);
-
         }
 
         template <class Val>
         static constexpr void set_center_at(container_type arr, size_t idx, Val&& val){
 
             arr[idx].c = std::forward<Val>(val);
-
         }
 
         template <class Val>
         static constexpr void set_offset_at(container_type arr, size_t idx, Val&& val){
 
             arr[idx].o = std::forward<Val>(val);
-
         } 
-
     };
 
     template <size_t HEIGHT>
@@ -4119,7 +3693,6 @@ namespace dg::heap::top_impl{
             };
 
             _Indicator::template trace_center_at<ARG_HEIGHT>(extractor, idx, l_cb, mid_cb, r_cb);
-
         }
 
 
@@ -4131,9 +3704,7 @@ namespace dg::heap::top_impl{
             update_left_at<ARG_HEIGHT>(arr, extractor, idx);
             update_right_at<ARG_HEIGHT>(arr, extractor, idx);
             update_center_at<ARG_HEIGHT>(arr, extractor, idx);
-
         }
-
     };
 
     template <size_t HEIGHT>
@@ -4150,19 +3721,16 @@ namespace dg::heap::top_impl{
         static inline void block(container_type arr, size_t idx) noexcept{
 
             _NodeUtility::assign(arr[idx], _ConstUtility::empty<Node>());
-
         }
 
         template <size_t ARG_HEIGHT>
         static inline void unblock(container_type arr, size_t idx) noexcept{
             
             _NodeUtility::assign(arr[idx], _ConstUtility::deflt<Node>(_IntervalUtility::template idx_to_interval<ARG_HEIGHT>(idx)));
-
         }
-
     };
 
-};
+}
 
 namespace dg::heap::bottom_impl{
 
@@ -4183,7 +3751,6 @@ namespace dg::heap::bottom_impl{
             using namespace dg::datastructure::boolvector::operation; 
 
             sequential_set(op, offset, boolify(val, std::integral_constant<size_t, BIT_SPACE>{}));
-
         }
 
         template <size_t BIT_SPACE, class T>
@@ -4193,49 +3760,42 @@ namespace dg::heap::bottom_impl{
             using namespace dg::datastructure::boolvector::operation; 
 
             return intify<traceback_type>(sequential_get<BIT_SPACE>(op, offset));
-
         }
 
         template <size_t ARG_HEIGHT, class T, traceback_type Val>
         static inline void set_left_trace(OperatableVector<T>& op, size_t idx, const std::integral_constant<traceback_type, Val>& TRACE_ID) noexcept{
 
             set<traceback_policy::L_BIT_SPACE>(op, _OffsetConverter::template get_left_offset<ARG_HEIGHT>(idx), TRACE_ID);            
-
         } 
 
         template <size_t ARG_HEIGHT, class T, traceback_type Val>
         static inline void set_right_trace(OperatableVector<T>& op, size_t idx, const std::integral_constant<traceback_type, Val>& TRACE_ID) noexcept{
 
             set<traceback_policy::R_BIT_SPACE>(op, _OffsetConverter::template get_right_offset<ARG_HEIGHT>(idx), TRACE_ID);
-
         }
 
         template <size_t ARG_HEIGHT, class T, traceback_type Val>
         static inline void set_center_trace(OperatableVector<T>& op, size_t idx, const std::integral_constant<traceback_type, Val>& TRACE_ID) noexcept{ 
 
             set<traceback_policy::C_BIT_SPACE>(op, _OffsetConverter::template get_center_offset<ARG_HEIGHT>(idx), TRACE_ID);
-
         }
 
         template <class T, traceback_type Val>
         static inline void set_next_base_block_bit(OperatableVector<T>& op, size_t idx, const std::integral_constant<traceback_type, Val>& TRACE_ID) noexcept{
 
             set<traceback_policy::BL_BIT_SPACE>(op, _OffsetConverter::get_next_base_blocked_bit_offset(idx), TRACE_ID);
-
         }
 
         template <class T, traceback_type Val>
         static inline void set_base_block_bit(OperatableVector<T>& op, size_t idx, const std::integral_constant<traceback_type, Val>& TRACE_ID) noexcept{
 
             set<traceback_policy::BL_BIT_SPACE>(op, _OffsetConverter::get_base_blocked_bit_offset(idx), TRACE_ID);
-
         }
 
         template <size_t ARG_HEIGHT, class T>
         static inline auto get_left_trace(ReadableVector<T>& op, size_t idx) noexcept -> traceback_type{
 
             return get<traceback_policy::L_BIT_SPACE>(op, _OffsetConverter::template get_left_offset<ARG_HEIGHT>(idx));
-
         }
 
         template <size_t ARG_HEIGHT, class T>
@@ -4248,23 +3808,19 @@ namespace dg::heap::bottom_impl{
         static inline auto get_center_trace(ReadableVector<T>& op, size_t idx) noexcept -> traceback_type{
             
             return get<traceback_policy::C_BIT_SPACE>(op, _OffsetConverter::template get_center_offset<ARG_HEIGHT>(idx));
-
         }
 
         template <class T>
         static inline auto get_next_base_block_bit(ReadableVector<T>& op, size_t idx) noexcept -> traceback_type{
 
             return get<traceback_policy::BL_BIT_SPACE>(op, _OffsetConverter::get_next_base_blocked_bit_offset(idx));
-
         }
 
         template <class T>
         static inline auto get_base_block_bit(ReadableVector<T>& op, size_t idx) noexcept -> traceback_type{
 
             return get<traceback_policy::BL_BIT_SPACE>(op, _OffsetConverter::get_base_blocked_bit_offset(idx));
-
         }
-
     };
 
     template <size_t HEIGHT>
@@ -4293,7 +3849,6 @@ namespace dg::heap::bottom_impl{
                
                 _Indicator::template trace_left_at<ARG_HEIGHT>(node_extractor, idx, left_callback, right_callback); 
             }
-
         }
 
         template <size_t ARG_HEIGHT, class T, class T1>
@@ -4308,7 +3863,6 @@ namespace dg::heap::bottom_impl{
                 
                 _Indicator::template trace_right_at<ARG_HEIGHT>(node_extractor, idx, left_callback, right_callback);
             }
-
         }
 
         template <size_t ARG_HEIGHT, class T, class T1>
@@ -4324,7 +3878,6 @@ namespace dg::heap::bottom_impl{
 
                 _Indicator::template trace_center_at<ARG_HEIGHT>(node_extractor, idx, left_callback, center_callback, right_callback);
             }
-
         }
 
         template <size_t ARG_HEIGHT, class T, class T1>
@@ -4335,9 +3888,7 @@ namespace dg::heap::bottom_impl{
             update_left_at<ARG_HEIGHT>(traceback_store, node_extractor, idx);
             update_right_at<ARG_HEIGHT>(traceback_store, node_extractor, idx);
             update_center_at<ARG_HEIGHT>(traceback_store, node_extractor, idx);
-
         }
-
     };
     
     template <size_t HEIGHT>
@@ -4350,72 +3901,44 @@ namespace dg::heap::bottom_impl{
         static inline void block(OperatableVector<T>& traceback_store, size_t idx) noexcept{
 
             if constexpr(_Utility::is_not_base(ARG_HEIGHT)){
-
                 _Operator::template set_center_trace<ARG_HEIGHT>(traceback_store, idx, traceback_policy::MID_BLOCKED_IC);
- 
             } else if constexpr(_Utility::is_next_base(ARG_HEIGHT)){
-
                 _Operator::set_next_base_block_bit(traceback_store, idx, traceback_policy::BLOCKED_IC);
-
             } else if constexpr(_Utility::is_base(ARG_HEIGHT)){
-
                 _Operator::set_base_block_bit(traceback_store, idx, traceback_policy::BLOCKED_IC);
-
             } else{
-                
                 static_assert(utility::FALSE_VAL<>, "unreachable");
-
             }
-
         }
 
         template <size_t ARG_HEIGHT, class T>
         static inline void unblock(OperatableVector<T>& traceback_store, size_t idx) noexcept{
 
             if constexpr(_Utility::is_not_base(ARG_HEIGHT)){
-
                 _Operator::template set_center_trace<ARG_HEIGHT>(traceback_store, idx, traceback_policy::MID_TRACEBACK_IC);
-
             } else if constexpr(_Utility::is_next_base(ARG_HEIGHT)){
-
                 _Operator::set_next_base_block_bit(traceback_store, idx, traceback_policy::UNBLOCKED_IC);
-
             } else if constexpr(_Utility::is_base(ARG_HEIGHT)){
-
                 _Operator::set_base_block_bit(traceback_store, idx, traceback_policy::UNBLOCKED_IC);
-
             } else{
-
                 static_assert(utility::FALSE_VAL<>, "unreachable");
-
             }
-            
         }
 
         template <size_t ARG_HEIGHT, class T>
         static inline bool is_blocked(ReadableVector<T>& traceback_store, size_t idx) noexcept{
 
             if constexpr(_Utility::is_not_base(ARG_HEIGHT)){
-
                 return _Operator::template get_center_trace<ARG_HEIGHT>(traceback_store, idx) == traceback_policy::MID_BLOCKED_IC();
-
             } else if constexpr(_Utility::is_next_base(ARG_HEIGHT)){
-                
                 return _Operator::get_next_base_block_bit(traceback_store, idx) == traceback_policy::BLOCKED_IC();
-
             } else if constexpr(_Utility::is_base(ARG_HEIGHT)){
-
                 return _Operator::get_base_block_bit(traceback_store, idx) == traceback_policy::BLOCKED_IC(); 
-
             } else{
-
                 static_assert(utility::FALSE_VAL<>, "unreachable");
                 return {};
-
             }   
-
         }
-
     };
 
     template <size_t HEIGHT>
@@ -4433,28 +3956,24 @@ namespace dg::heap::bottom_impl{
         static inline void fetch(cache::CacheControllable<T>& cache, size_t key, const cache_type& val) noexcept{
 
             cache.set(key, val);
-
         }
         
         template <class T>
         static inline void invalidate(cache::CacheControllable<T>& cache, size_t key) noexcept{
 
             fetch(cache, key, _ConstValUtility::null<cache_type>());
-
         }
 
         template <class T, size_t ARG_HEIGHT>
         static inline void defaultize(cache::CacheControllable<T>& cache, size_t key, const std::integral_constant<size_t, ARG_HEIGHT>&) noexcept{
 
             fetch(cache, key, _ConstValUtility::deflt<cache_type>(_IntervalUtility::template idx_to_interval<ARG_HEIGHT>(key)));
-
         } 
 
         template <class T>
         static inline void empty_init(cache::CacheControllable<T>& cache, size_t key) noexcept{
 
             fetch(cache, key, _ConstValUtility::empty<cache_type>());
-
         } 
 
         template <size_t ARG_HEIGHT, class T, class T1>
@@ -4468,48 +3987,32 @@ namespace dg::heap::bottom_impl{
                 store_type rs           = cache_data.l;
 
                 if (rs != _ConstValUtility::null<store_type>()){
-
                     return rs;
-
                 }
 
                 bool cond = _TraceBlocker::template is_blocked<ARG_HEIGHT>(traceback_store, idx); //REVIEW: optimization opportunity 
 
                 if (cond){
-
                     rs = _ConstValUtility::empty<store_type>();
                     empty_init(cache, idx);
-
                 } else{
-
                     if constexpr(_HeapUtility::is_base(ARG_HEIGHT)){
-
                         rs = _ConstValUtility::leaf<store_type>();
-
                     } else{
-
                         const auto SPAN_SIZE    = _IntervalUtility::span_size_from_height(ARG_HEIGHT + 1);
                         auto print              = _TraceOperator::template get_left_trace<ARG_HEIGHT>(traceback_store, idx); 
 
                         switch (print){
-
                             case traceback_policy::LEFT_TRACEBACK:
-
                                 rs = get_left_at<ARG_HEIGHT + 1>(traceback_store, cache, _HeapUtility::left(idx));
                                 break;
-
                             case traceback_policy::RIGHT_TRACEBACK:
-
                                 rs = SPAN_SIZE + get_left_at<ARG_HEIGHT + 1>(traceback_store, cache, _HeapUtility::right(idx));
                                 break;
-
                             default:
-
                                 std::abort();
                                 break;
-
                         }
-
                     }
      
                     cache_data.l = rs;
@@ -4518,14 +4021,10 @@ namespace dg::heap::bottom_impl{
                 }
 
                 return rs;
-
             } else{
-
                 static_assert(utility::FALSE_VAL<>);
                 return {};
-
             }
-
         } 
 
         template <size_t ARG_HEIGHT, class T, class T1>
@@ -4563,40 +4062,26 @@ namespace dg::heap::bottom_impl{
                         auto print              = _TraceOperator::template get_right_trace<ARG_HEIGHT>(traceback_store, idx);
 
                         switch (print){
-                            
                             case traceback_policy::LEFT_TRACEBACK:
-
                                 rs = get_right_at<ARG_HEIGHT + 1>(traceback_store, cache, _HeapUtility::left(idx)) + SPAN_SIZE;
                                 break;
-                            
                             case traceback_policy::RIGHT_TRACEBACK:
-
                                 rs = get_right_at<ARG_HEIGHT + 1>(traceback_store, cache, _HeapUtility::right(idx));
                                 break;
-
                             default:
-
                                 std::abort();
                                 break;
-                        
                         } 
-
                         cache_data.r = rs;
                         fetch(cache, idx, cache_data);
-
                     }
 
                     return rs;
-
                 }
-
             } else{
-                
                 static_assert(utility::FALSE_VAL<>);
                 return {};
-
             }
-
         }
 
         template <size_t ARG_HEIGHT, class T, class T1>
@@ -4623,60 +4108,42 @@ namespace dg::heap::bottom_impl{
                     store_type rs           = cache_data.c; 
 
                     if (rs != _ConstValUtility::null<store_type>()){
-
                         return rs;
-
                     }
 
                     auto print = _TraceOperator::template get_center_trace<ARG_HEIGHT>(traceback_store, idx);
 
                     switch (print){
-
                         case traceback_policy::LEFT_TRACEBACK:
-
                             rs = get_center_at<ARG_HEIGHT + 1>(traceback_store, cache, _HeapUtility::left(idx));
                             cache_data.c = rs;
                             fetch(cache, idx, cache_data);
                             break;
-
                         case traceback_policy::RIGHT_TRACEBACK:
-
                             rs = get_center_at<ARG_HEIGHT + 1>(traceback_store, cache, _HeapUtility::right(idx));
                             cache_data.c = rs;
                             fetch(cache, idx, cache_data);
                             break; 
-
                         case traceback_policy::MID_TRACEBACK:
-
                             rs = get_right_at<ARG_HEIGHT + 1>(traceback_store, cache, _HeapUtility::left(idx)) + get_left_at<ARG_HEIGHT + 1>(traceback_store, cache, _HeapUtility::right(idx));
                             cache_data.c = rs;
                             fetch(cache, idx, cache_data);
                             break;
-                        
                         case traceback_policy::MID_BLOCKED:
-
                             rs = _ConstValUtility::empty<store_type>();
                             empty_init(cache, idx);
                             break;
-
                         default:
-
                             std::abort();
                             break;
-
                     }
 
                     return rs;
-
                 }
-
             } else{
-
                 static_assert(utility::FALSE_VAL<>);
                 return {};
-
             }
-
         }
 
         template <size_t ARG_HEIGHT, class T, class T1>
@@ -4708,65 +4175,46 @@ namespace dg::heap::bottom_impl{
                     store_type EOLI{};
 
                     if (rs != _ConstValUtility::null<store_type>()){
-
                         return rs;
-
                     }
 
                     auto print = _TraceOperator::template get_center_trace<ARG_HEIGHT>(traceback_store, idx);
 
                     switch(print){
-
                         case traceback_policy::LEFT_TRACEBACK:
-                            
                             rs = get_offset_at<ARG_HEIGHT + 1>(traceback_store, cache, _HeapUtility::left(idx));
                             cache_data.o = rs;
                             fetch(cache, idx, cache_data);
                             break;
-
                         case traceback_policy::RIGHT_TRACEBACK:
-
                             rs = get_offset_at<ARG_HEIGHT + 1>(traceback_store, cache, _HeapUtility::right(idx));
                             cache_data.o = rs;
                             fetch(cache, idx, cache_data);
                             break;
-                        
                         case traceback_policy::MID_TRACEBACK:
-
                             EOLI            = _IntervalUtility::get_interval_excl_end(_IntervalUtility::template idx_to_interval<ARG_HEIGHT + 1>(_HeapUtility::left(idx))); //REVIEW: deduced statement
                             rs              = EOLI - get_right_at<ARG_HEIGHT + 1>(traceback_store, cache, _HeapUtility::left(idx)); //REVIEW: potential overflow
                             cache_data.o    = rs;
                             fetch(cache, idx, cache_data);
                             break;
-
                         case traceback_policy::MID_BLOCKED:
-
                             rs = _ConstValUtility::empty<store_type>();
                             empty_init(cache, idx);
                             break;
-                        
                         default:
-
                             std::abort();
                             break;
-
                     }
 
                     return rs;
-
                 }
-
             } else{
-
                 static_assert(utility::FALSE_VAL<>);
                 return {};
-
             }
         }
-
     };
-
-};
+}
 
 namespace dg::heap::data{
 
@@ -4791,27 +4239,22 @@ namespace dg::heap::data{
             node_array              = node_array_arg;
             boolvector_container    = boolvector_container_arg;
             cache_controller        = std::move(cache_controller_arg);
-            
         }                       
 
         static auto& get_node_container() noexcept{
 
             return node_array;
-
         }
 
         static auto& get_boolvector_container() noexcept{
 
             return *boolvector_container.to_operatable_vector();
-
         }
 
         static auto& get_cache_instance() noexcept{
 
             return *cache_controller.to_cache_controllable();
-
         }
-
     };
 
     template <class T>
@@ -4834,85 +4277,55 @@ namespace dg::heap::data{
         static store_type get_left_at(size_t idx) noexcept{
 
             if constexpr(HEIGHT <= DYNAMIC_HEIGHT){
-
                 return _StdOperator::get_left_at(_HeapData::get_node_container(), idx);
-
             } else if constexpr(HEIGHT <= TRACEBACK_HEIGHT){
-
                 return _TracebackOperator::template get_left_at<HEIGHT>(_HeapData::get_boolvector_container(), _HeapData::get_cache_instance(), idx);
-
             } else{
-
                 static_assert(utility::FALSE_VAL<>, "unreachable");
                 return {};
-
             }
-
         }
 
         template <size_t HEIGHT>
         static store_type get_right_at(size_t idx) noexcept{
 
             if constexpr(HEIGHT <= DYNAMIC_HEIGHT){
-
                 return _StdOperator::get_right_at(_HeapData::get_node_container(), idx);
-
             } else if constexpr(HEIGHT <= TRACEBACK_HEIGHT){
-
                 return _TracebackOperator::template get_right_at<HEIGHT>(_HeapData::get_boolvector_container(), _HeapData::get_cache_instance(), idx);
-
             } else {
-
                 static_assert(utility::FALSE_VAL<>, "unreachable");
                 return {};
-
             }
-
         } 
 
         template <size_t HEIGHT>
         static store_type get_center_at(size_t idx) noexcept{
 
             if constexpr(HEIGHT <= DYNAMIC_HEIGHT){
-
                 return _StdOperator::get_center_at(_HeapData::get_node_container(), idx);
-
             } else if constexpr(HEIGHT <= TRACEBACK_HEIGHT){
-
                 return _TracebackOperator::template get_center_at<HEIGHT>(_HeapData::get_boolvector_container(), _HeapData::get_cache_instance(), idx);
-
             } else{
-
                 static_assert(utility::FALSE_VAL<>, "unreachable");
                 return {};
-
             }
-
         }
 
         template <size_t HEIGHT>
         static store_type get_offset_at(size_t idx) noexcept{
 
             if constexpr(HEIGHT <= DYNAMIC_HEIGHT){
-
                 return _StdOperator::get_offset_at(_HeapData::get_node_container(), idx);
-
             } else if constexpr(HEIGHT <= TRACEBACK_HEIGHT){
-
                 return _TracebackOperator::template get_offset_at<HEIGHT>(_HeapData::get_boolvector_container(), _HeapData::get_cache_instance(), idx);
-
             } else{
-
                 static_assert(utility::FALSE_VAL<>, "unreachable");
                 return {};
-
             }
-
         }
-
     };
-
-};
+}
 
 namespace dg::heap::internal_core{
 
@@ -4942,81 +4355,54 @@ namespace dg::heap::internal_core{
             static void update(size_t idx) noexcept{
 
                 if constexpr(ARG_HEIGHT <= DYNAMIC_HEIGHT){
-
                     _TopUpdater::template update_at<ARG_HEIGHT>(_HeapData::get_node_container(), _StorageExtractor(), idx);
-
                 } else if constexpr(ARG_HEIGHT <= TRACEBACK_HEIGHT){
-
                     _CacheOperator::invalidate(_HeapData::get_cache_instance(), idx);
                     _BottomUpdater::template update_at<ARG_HEIGHT>(_HeapData::get_boolvector_container(), _StorageExtractor(), idx);
-
                 } else{
-
                     static_assert(utility::FALSE_VAL<>, "unreachable");
-
                 }
-
             }
 
             template <size_t ARG_HEIGHT>
             static void block(size_t idx) noexcept{
 
                 if constexpr(ARG_HEIGHT <= DYNAMIC_HEIGHT){
-
                     _BottomBlocker::template block<ARG_HEIGHT>(_HeapData::get_boolvector_container(), idx);
                     _TopBlocker::block(_HeapData::get_node_container(), idx);
-
                 } else if constexpr(ARG_HEIGHT <= TRACEBACK_HEIGHT){
-
                     _BottomBlocker::template block<ARG_HEIGHT>(_HeapData::get_boolvector_container(), idx);
                     _CacheOperator::empty_init(_HeapData::get_cache_instance(), idx);
-
                 } else{
-
                     std::abort(); //temporary solution
                     // static_assert(utility::FALSE_VAL<>, "unreachable");
-
                 }   
-
             }
 
             template <size_t ARG_HEIGHT>
             static void unblock(size_t idx) noexcept{
 
                 if constexpr(ARG_HEIGHT <= DYNAMIC_HEIGHT){
-
                     _BottomBlocker::template unblock<ARG_HEIGHT>(_HeapData::get_boolvector_container(), idx);
                     _TopBlocker::template unblock<ARG_HEIGHT>(_HeapData::get_node_container(), idx);
-
                 } else if constexpr(ARG_HEIGHT <= TRACEBACK_HEIGHT){
-
                     _BottomBlocker::template unblock<ARG_HEIGHT>(_HeapData::get_boolvector_container(), idx);
                     _CacheOperator::defaultize(_HeapData::get_cache_instance(), idx, std::integral_constant<size_t, ARG_HEIGHT>{});
-
                 } else{
-
                     static_assert(utility::FALSE_VAL<>, "unreachable");
-
                 }
-
             }
 
             template <size_t ARG_HEIGHT>
             static bool is_blocked(size_t idx) noexcept{
                 
                 if constexpr(ARG_HEIGHT <= TRACEBACK_HEIGHT){
-
                     return _BottomBlocker::template is_blocked<ARG_HEIGHT>(_HeapData::get_boolvector_container(), idx); 
-
                 } else{
-
                     static_assert(utility::FALSE_VAL<>, "unreachable");
                     return {};
-
                 }
-
             }
-
     };
 
     template <class T, class T1, class T2>
@@ -5024,7 +4410,7 @@ namespace dg::heap::internal_core{
 
         private:
 
-            std::shared_ptr<seeker::Seekable<T>> max_seeker; //mem-leak if not support RTTI - shared ptr check
+            std::shared_ptr<seeker::Seekable<T>> max_seeker;
             std::shared_ptr<dispatcher::Dispatchable<T1>> block_dispatcher;
             std::shared_ptr<dispatcher::Dispatchable<T2>> unblock_dispatcher;
         
@@ -5056,15 +4442,12 @@ namespace dg::heap::internal_core{
                 this->block_dispatcher->dispatch(rs);
                 
                 return _IntervalUlt::interval_to_relative(rs);
-
             }
 
             void free(const interval_type& relative) noexcept{
                 
                 this->unblock_dispatcher->dispatch(_IntervalUlt::relative_to_interval(relative));
-
             }
-
     };
 
     template <class T, class T1, class BuyableSpawner, class SellableSpawner>
@@ -5072,7 +4455,7 @@ namespace dg::heap::internal_core{
 
         private:
 
-            BuyableSpawner buyable_spawner; //fine - generatable pattern (no args)
+            BuyableSpawner buyable_spawner;
             SellableSpawner sellable_spawner;
 
             std::shared_ptr<market::Buyable<T>>  buyable_ins; //owning semantics 
@@ -5106,7 +4489,6 @@ namespace dg::heap::internal_core{
                 this->spawn_buyable(); 
 
                 return this->raw_alloc(sz);
-            
             }
             
             void free(const interval_type& intv){
@@ -5121,7 +4503,6 @@ namespace dg::heap::internal_core{
                 if (!this->raw_free(intv)){
                     std::abort();
                 }
-
             }
 
         private:
@@ -5141,45 +4522,37 @@ namespace dg::heap::internal_core{
             bool raw_free(const interval_type& relative){
 
                 return this->is_valid_sellable() && this->sellable_ins->sell(_IntervalUlt::relative_to_interval(relative));
-
             }
 
             bool is_valid_buyable(){
 
                 return bool{this->buyable_ins};
-
             }
 
             bool is_valid_sellable(){
 
                 return bool{this->sellable_ins};
-
             }
 
             void sync_buyable(){
 
                 this->buyable_ins.reset();
-
             }
 
             void sync_sellable(){
 
                 this->sellable_ins.reset();
-
             }
 
             void spawn_buyable(){
 
                 this->buyable_ins = this->buyable_spawner();
-
             }
 
             void spawn_sellable(){
 
                 this->sellable_ins = this->sellable_spawner();
-
             }
-
     };
 
     template <class T, class T1>
@@ -5206,7 +4579,6 @@ namespace dg::heap::internal_core{
                 } catch(std::exception& e){
                     return this->direct_allocator->alloc(sz);
                 }
-
             }
 
             void free(const interval_type& interval) noexcept{
@@ -5216,9 +4588,7 @@ namespace dg::heap::internal_core{
                 } catch(std::exception& e){
                     this->direct_allocator->free(interval);
                 }
-
             }
-        
     };
     
     template <size_t TREE_HEIGHT, class T, class T1, class T2>
@@ -5255,7 +4625,6 @@ namespace dg::heap::internal_core{
                 }
                 
                 this->blocker->dispatch(get_trailing(virtual_base));
-
             }
 
             store_type shrink() noexcept{
@@ -5264,7 +4633,6 @@ namespace dg::heap::internal_core{
                 this->shrink(new_virtual_base);
 
                 return new_virtual_base;
-
             }
 
             void unshrink(store_type virtual_base) noexcept{
@@ -5276,7 +4644,6 @@ namespace dg::heap::internal_core{
                 }
 
                 this->unblocker->dispatch(get_trailing(virtual_base));
-
             }
 
         private:
@@ -5287,7 +4654,6 @@ namespace dg::heap::internal_core{
                 auto trailing       = _IntvUlt::incl_right_shrink(_IntvUlt::idx_to_interval(ROOT), virtual_base);
 
                 return trailing;
-
             }
 
             auto get_most_compact_virtual_base() -> store_type{
@@ -5300,11 +4666,8 @@ namespace dg::heap::internal_core{
                 }
   
                 return _IntvUlt::get_interval_beg(r_intv.value());
-
             }
-
     };
-
 }
 
 namespace dg::heap::core{   
@@ -5326,15 +4689,12 @@ namespace dg::heap::core{
             std::optional<interval_type> alloc(store_type sz) noexcept{
 
                 return this->ins->alloc(sz);
-
             }
 
             void free(const interval_type& intv) noexcept{
 
                 this->ins->free(intv);
-
             }
-
     };
 
     template <class T, class T1>
@@ -5358,13 +4718,11 @@ namespace dg::heap::core{
             std::optional<interval_type> alloc(store_type sz) noexcept{
                 
                 return this->allocator->alloc(sz);
-
             }
 
             void free(const interval_type& relative) noexcept{ 
                 
                 this->allocator->free(relative);
-
             }
 
             store_type shrink() noexcept{
@@ -5375,15 +4733,12 @@ namespace dg::heap::core{
             void shrink(store_type virtual_base) noexcept{
                 
                 this->shrinker->shrink(virtual_base);
-
             }
 
             void unshrink(store_type virtual_base) noexcept{
                 
                 this->shrinker->unshrink(virtual_base);
-
             }
-
     };
 
 };
@@ -5405,6 +4760,7 @@ namespace dg::heap::make{
     struct NodeArraySpecs{
 
         using type  = types::Node;
+        static_assert(std::has_unique_object_representations_v<type>);
 
         static inline _DG_CONSTEVAL auto size() -> size_t{
     
@@ -5412,15 +4768,14 @@ namespace dg::heap::make{
             auto rs                 = _HeapUtility::node_count();
             
             return rs;
-
         }
-
     };
 
     template <size_t HEIGHT>
     struct BoolArraySpecs{
 
         using type  = datastructure::boolvector::bucket_type;  
+        static_assert(std::has_unique_object_representations_v<type>);
 
         static inline _DG_CONSTEVAL auto size() -> size_t{
 
@@ -5429,9 +4784,7 @@ namespace dg::heap::make{
             auto rs                 = _OffsetConverter::get_base_bit_offset(_HeapUtility::node_count()) / datastructure::boolvector::BIT_PER_BUCKET + 1; //relaxed size
 
             return rs;
-            
         } 
-
     };
 
     template <class ArraySpecs>
@@ -5453,53 +4806,44 @@ namespace dg::heap::make{
             static inline _DG_CONSTEVAL auto size_no_align() -> size_t{
                 
                 return ArraySpecs::size() * sizeof(type);
-
             }
 
             static inline _DG_CONSTEVAL auto size() -> size_t{
 
                 return size_no_align() + DEFLT_ALIGNMENT; 
-
             }
 
-            static inline auto data(void * buf) noexcept -> void *{
+            static inline auto data(char * buf) noexcept -> char *{
 
                 return _MemoryUtility::align<DEFLT_ALIGNMENT>(buf); 
-
             }
 
-            static inline auto array(void * buf) noexcept -> std::pair<type *, size_t>{
+            static inline auto array(char * buf) noexcept -> std::pair<type *, size_t>{
 
                 return {_LifeTimeTracker::retrieve<type>(data(buf)), ArraySpecs::size()}; //
-
             }
 
-            static inline auto get_misalignment(void * buf) noexcept -> size_t{ //guaranteed to be > 0
+            static inline auto get_misalignment(char * buf) noexcept -> size_t{ //guaranteed to be > 0
     
                 return static_cast<size_t>(_MemoryUtility::get_distance_vector(buf, data(buf))); //acknowledged intptr_t 
-
             }
 
-            static inline void inplace_init(void * buf) noexcept{
+            static inline void inplace_init(char * buf) noexcept{
 
                 type * arr = new (data(buf)) type[ArraySpecs::size()];
                 _LifeTimeTracker::start_lifetime(arr); 
-
             }
 
-            static inline void inplace_launder(void * buf) noexcept{
+            static inline void inplace_launder(char * buf) noexcept{
                 
                 type * arr = _MemoryService::launder_arr<type>(data(buf), ArraySpecs::size());
                 _LifeTimeTracker::start_lifetime(arr);
-
             }
 
-            static inline void inplace_destruct(void * buf) noexcept{
+            static inline void inplace_destruct(char * buf) noexcept{
 
                 _LifeTimeTracker::end_lifetime(data(buf));
-
             }
-
     };
 
     template <class _ResourceMaker>
@@ -5512,14 +4856,13 @@ namespace dg::heap::make{
         
         private:
 
-            using _EndiannessUlt    = memory::SyncedEndiannessService;
+            // using _EndiannessUlt    = memory::SyncedEndiannessService;
             using _MemoryUlt        = utility::MemoryUtility;
             using Base              = _ResourceMaker;
 
-            static inline auto get_misalignment(void * buf) noexcept -> size_t{
+            static inline auto get_misalignment(char * buf) noexcept -> size_t{
 
                 return Base::get_misalignment(_MemoryUlt::forward_shift(buf, sizeof(header_type)));
-
             }
 
         public:
@@ -5527,123 +4870,47 @@ namespace dg::heap::make{
             static inline _DG_CONSTEVAL auto size() -> size_t{
 
                 return Base::size() + sizeof(header_type);
-
             }
 
-            static inline auto data(void * buf) noexcept -> void *{
+            static inline auto data(char * buf) noexcept -> char *{
 
                 return Base::data(_MemoryUlt::forward_shift(buf, sizeof(header_type))); 
-
             }
 
-            static inline auto array(void * buf) noexcept -> decltype(Base::array(buf)){
+            static inline auto array(char * buf) noexcept -> decltype(Base::array(buf)){
 
                 return Base::array(_MemoryUlt::forward_shift(buf, sizeof(header_type))); 
-
             }
 
-            static inline void inplace_init(void * buf) noexcept {
+            static inline void inplace_init(char * buf) noexcept {
 
-                void * fs_buf       = _MemoryUlt::forward_shift(buf, sizeof(header_type));
+                char * fs_buf       = _MemoryUlt::forward_shift(buf, sizeof(header_type));
                 auto misalignment   = static_cast<header_type>(get_misalignment(buf));
 
-                _EndiannessUlt::dump(buf, misalignment);
+                dg::compact_serializer::core::serialize(misalignment, buf);
                 Base::inplace_init(fs_buf);
-
             }
 
-            static inline void inplace_correct(void * buf) noexcept{
+            static inline void inplace_correct(char * buf) noexcept{
                 
-                auto org_misalignment   = _EndiannessUlt::load<header_type>(buf);
+                auto org_misalignment  = header_type{}; 
+                dg::compact_serializer::core::deserialize(buf, org_misalignment);
                 auto cur_misalignment   = static_cast<header_type>(get_misalignment(buf));
                 auto sz                 = Base::size_no_align();
 
-                void * fs_buf           = _MemoryUlt::forward_shift(buf, sizeof(header_type));
-                void * dst              = _MemoryUlt::forward_shift(fs_buf, cur_misalignment);
-                void * src              = _MemoryUlt::forward_shift(fs_buf, org_misalignment);
+                char * fs_buf           = _MemoryUlt::forward_shift(buf, sizeof(header_type));
+                char * dst              = _MemoryUlt::forward_shift(fs_buf, cur_misalignment);
+                char * src              = _MemoryUlt::forward_shift(fs_buf, org_misalignment);
 
                 std::memmove(dst, src, sz);
-                _EndiannessUlt::dump(buf, cur_misalignment);
+                dg::compact_serializer::core::serialize(cur_misalignment, buf);
                 Base::inplace_launder(fs_buf);
-
             }
 
-            static inline void inplace_destruct(void * buf) noexcept{
+            static inline void inplace_destruct(char * buf) noexcept{
 
                 Base::inplace_destruct(_MemoryUlt::forward_shift(buf, sizeof(header_type)));
-
             }
-
-    };
-
-    template <class _ResourceMaker, class Flattener, class Packager>
-    struct EndiannessEmbeddedResourceMaker: private _ResourceMaker{
-
-        using Base              = _ResourceMaker;
-        using EndiannessUlt     = memory::SyncedEndiannessService; 
-        using MemUlt            = utility::MemoryUtility;
-        using type              = typename Base::type;
-        using header_type       = decltype(EndiannessUlt::native_uint8);
-
-        static inline _DG_CONSTEVAL auto size() -> size_t{
-
-            return Base::size() + sizeof(header_type);
-
-        }
-
-        static inline auto data(void * buf) noexcept -> void *{
-
-            return Base::data(MemUlt::forward_shift(buf, sizeof(header_type)));
-
-        }
-
-        static inline auto array(void * buf) noexcept -> decltype(Base::array(buf)){
-
-            return Base::array(MemUlt::forward_shift(buf, sizeof(header_type))); 
-
-        }
-
-        static inline void inplace_init(void * buf) noexcept {
-
-            EndiannessUlt::dump(buf, EndiannessUlt::native_uint8);
-            Base::inplace_init(MemUlt::forward_shift(buf, sizeof(header_type)));
-
-        }
-
-        static inline void inplace_bswap(std::pair<type *, size_t> array){
-            
-            auto packager     = Packager{};
-            auto flattener    = Flattener{};
-            auto transformer  = [=](type& e){return packager(essentials::transform(flattener(e), EndiannessUlt::bswap_lambda));};
-
-            std::transform(array.first, array.first + array.second, array.first, transformer);
-
-        }
-
-        static inline void inplace_correct(void * buf) noexcept{
-
-            auto org_endianness = EndiannessUlt::load<header_type>(buf);
-            auto cur_endianness = EndiannessUlt::native_uint8;
-            auto fs_buf         = MemUlt::forward_shift(buf, sizeof(header_type));
-
-            EndiannessUlt::dump(buf, cur_endianness);
-            Base::inplace_correct(fs_buf); 
-            
-            if (org_endianness != cur_endianness){
-
-                inplace_bswap(Base::array(fs_buf));
-
-            }
-
-        }
-
-        static inline void inplace_destruct(void * buf) noexcept{
-
-            Base::inplace_destruct(MemUlt::forward_shift(buf, sizeof(header_type)));
-
-        }
-
-
     };
 
     template <size_t DYNAMIC_HEIGHT, size_t TRACEBACK_HEIGHT>
@@ -5651,7 +4918,7 @@ namespace dg::heap::make{
 
         private:
 
-            using _NodeMaker        = AlignmentEmbeddedResourceMaker<ArrayMaker<NodeArraySpecs<DYNAMIC_HEIGHT>>>; //REVIEW: cross-platform padding consideration 
+            using _NodeMaker        = AlignmentEmbeddedResourceMaker<ArrayMaker<NodeArraySpecs<DYNAMIC_HEIGHT>>>;
             using _BvecMaker        = AlignmentEmbeddedResourceMaker<ArrayMaker<BoolArraySpecs<TRACEBACK_HEIGHT>>>; 
             using _MemoryUtility    = utility::MemoryUtility;
         
@@ -5662,36 +4929,30 @@ namespace dg::heap::make{
             static inline _DG_CONSTEVAL auto size() -> size_t{
                 
                 return _NodeMaker::size() + _BvecMaker::size();
-
             }
 
-            static inline auto get(void * buf) noexcept -> type{
+            static inline auto get(char * buf) noexcept -> type{
 
                 return type{_NodeMaker::array(buf), _BvecMaker::array(_MemoryUtility::forward_shift(buf, _NodeMaker::size()))};
-
             }
 
-            static inline void inplace_init(void * buf) noexcept{
+            static inline void inplace_init(char * buf) noexcept{
 
                 _NodeMaker::inplace_init(buf);
                 _BvecMaker::inplace_init(_MemoryUtility::forward_shift(buf, _NodeMaker::size())); 
-
             }
 
-            static inline void inplace_correct(void * buf) noexcept{
+            static inline void inplace_correct(char * buf) noexcept{
 
                 _NodeMaker::inplace_correct(buf);
                 _BvecMaker::inplace_correct(_MemoryUtility::forward_shift(buf, _NodeMaker::size()));
-
             } 
 
-            static inline void inplace_destruct(void * buf) noexcept{
+            static inline void inplace_destruct(char * buf) noexcept{
 
                 _NodeMaker::inplace_destruct(buf);
                 _BvecMaker::inplace_destruct(_MemoryUtility::forward_shift(buf, _NodeMaker::size()));
-
             }
-
     };
 
     template <intmax_t DH_Num, intmax_t DH_Denom, intmax_t TB_Num, intmax_t TB_Denom>
@@ -5706,7 +4967,6 @@ namespace dg::heap::make{
             intmax_t rs                 = CASTED_TREE_HEIGHT * DH_Num / DH_Denom;
 
             return static_cast<uint8_t>(rs);  
-
         }
 
         static constexpr uint8_t get_traceback_height(const uint8_t TREE_HEIGHT){
@@ -5715,9 +4975,7 @@ namespace dg::heap::make{
             intmax_t rs                 = CASTED_TREE_HEIGHT * TB_Num / TB_Denom;
             
             return static_cast<uint8_t>(rs);
-
         } 
-
     };
 
     using StdTreeSpecs = decltype(TreeSpecs(typename std::ratio<2, 3>::type{}, typename std::ratio<1, 1>::type{}));
@@ -5737,7 +4995,6 @@ namespace dg::heap::make{
 
     template <size_t TREE_HEIGHT, class _CustomTreeSpecs>
     static inline auto get_heap_maker(std::integral_constant<size_t, TREE_HEIGHT> ic, _CustomTreeSpecs tree_specs) -> typename decltype(HeapMakerFactory(ic, tree_specs))::type;
-
 };
 
 namespace dg::heap::resource{
@@ -5778,9 +5035,7 @@ namespace dg::heap::resource{
 
             using rs_type   = std::remove_pointer_t<decltype(controller.to_heap_operatable())>;
             return rs_type{};
-
         }
-
     };
 
     struct AllocatorSpawner{
@@ -5802,7 +5057,6 @@ namespace dg::heap::resource{
             rs_type rs      = std::unique_ptr<ins_type>(new ins_type(allocator));
 
             return rs;
-
         }
 
         template <class BuyableSpawnable, class SellableSpawnable>
@@ -5821,7 +5075,6 @@ namespace dg::heap::resource{
             rs_type rs              = std::unique_ptr<ins_type>(new ins_type(allocator));
 
             return rs;
-
         }
 
         template <class T, class T1>
@@ -5836,7 +5089,6 @@ namespace dg::heap::resource{
             auto sellable_spawner   = market::BrokerSpawner::get_buy_broker_spawner(controller, BUY_LIM);
 
             return spawn_fast_allocator(buyable_spawner, sellable_spawner);
-
         }
 
         template <class T, class T1>
@@ -5851,7 +5103,6 @@ namespace dg::heap::resource{
             auto sellable_spawner   = market::BrokerSpawner::get_buy_broker_spawner(controller, BUY_LIM);
 
             return spawn_fast_allocator(buyable_spawner, sellable_spawner);
-
         }
 
         template <class T, class T1>
@@ -5871,7 +5122,6 @@ namespace dg::heap::resource{
             rs_type rs      = std::unique_ptr<ins_type>(new ins_type(shrinker));
 
             return rs;
-
         }
 
         template <class T, class T1>
@@ -5886,7 +5136,6 @@ namespace dg::heap::resource{
             rs_type rs      = std::make_unique<ins_type>(allocator);
             return rs;
         }
-
     };
 
     struct Virtualizer{
@@ -5896,7 +5145,6 @@ namespace dg::heap::resource{
             
             core::Allocator rs(ins);
             return std::make_unique<decltype(rs)>(rs); 
-
         }
 
         template <class T, class T1>
@@ -5905,20 +5153,17 @@ namespace dg::heap::resource{
             
             core::Allocator_X rs(ins, shrinker);
             return std::make_unique<decltype(rs)>(rs);
-
         }
-
     }; 
 
     struct HeapResourceBase{
 
         using height_type       = uint8_t;
-        using const_height_type = const height_type;
         using _MemoryUlt        = utility::MemoryUtility; 
 
         static constexpr auto TREE_SPECS     = make::StdTreeSpecs{};
 
-        static auto fwd(void * data) noexcept -> void *{
+        static auto fwd(char * data) noexcept -> char *{
 
             return _MemoryUlt::forward_shift(data, sizeof(height_type));    
         }
@@ -5928,11 +5173,10 @@ namespace dg::heap::resource{
             
             using type  = std::add_pointer_t<decltype(make::get_heap_maker(HEIGHT, TREE_SPECS))>;
             return type{};
-
         }
 
         template <class CallBack>
-        static constexpr void get_heap_maker(const CallBack& cb_lambda, const_height_type HEIGHT){
+        static constexpr void get_heap_maker(const CallBack& cb_lambda, height_type HEIGHT){
             
             constexpr auto DELTA    = limits::EXCL_MAX_HEAP_HEIGHT - limits::MIN_HEAP_HEIGHT;
             constexpr auto idx_seq  = std::make_index_sequence<DELTA>{};
@@ -5953,7 +5197,7 @@ namespace dg::heap::resource{
             }(idx_seq);
         }
 
-        static constexpr size_t size(const_height_type HEIGHT){
+        static constexpr size_t size(height_type HEIGHT){
 
             size_t rs{};
             auto cb_lambda  = [&]<class HeapMaker>(HeapMaker *){rs = HeapMaker::size() + sizeof(height_type);};
@@ -5961,7 +5205,6 @@ namespace dg::heap::resource{
 
             return rs;
         } 
-
     };
 
     struct HeapResourceInitializer: HeapResourceBase{
@@ -5969,31 +5212,30 @@ namespace dg::heap::resource{
         private:
 
             using _Base             = HeapResourceBase;
-            using _EndiannessUlt    = memory::SyncedEndiannessService;
 
         public:
 
             using height_type       = typename _Base::height_type;
-            using const_height_type = typename _Base::const_height_type;
 
-            static inline void inplace_init(void * buf, const_height_type HEIGHT) noexcept{
-
-                _EndiannessUlt::dump(buf, HEIGHT);
+            static inline void inplace_init(char * buf, height_type HEIGHT) noexcept{
+                
+                dg::compact_serializer::core::serialize(HEIGHT, buf);
                 auto cb_lambda  = [=]<class HeapMaker>(HeapMaker *){HeapMaker::inplace_init(fwd(buf));};
                 get_heap_maker(cb_lambda, HEIGHT);
             }
 
-            static inline void inplace_destruct(void * buf) noexcept{
+            static inline void inplace_destruct(char * buf) noexcept{
 
-                const_height_type HEIGHT    = _EndiannessUlt::load<height_type>(buf);
-                auto cb_lambda              = [=]<class HeapMaker>(HeapMaker *){HeapMaker::inplace_destruct(fwd(buf));};
+                height_type HEIGHT  = {};
+                dg::compact_serializer::core::deserialize(buf, HEIGHT);
+                auto cb_lambda      = [=]<class HeapMaker>(HeapMaker *){HeapMaker::inplace_destruct(fwd(buf));};
                 get_heap_maker(cb_lambda, HEIGHT);
             }
 
-            static inline auto init(const_height_type HEIGHT) -> std::shared_ptr<char[]>{
+            static inline auto init(height_type HEIGHT) -> std::shared_ptr<char[]>{
 
                 auto revert_lambda = [](char * arr){
-                    inplace_destruct(static_cast<void *>(arr));
+                    inplace_destruct(static_cast<char *>(arr));
                     delete[] arr;
                 };
            
@@ -6003,36 +5245,33 @@ namespace dg::heap::resource{
                 return rs;
             }
 
-            static inline void inplace_correct(void * buf) noexcept{
+            static inline void inplace_correct(char * buf) noexcept{
                 
-                const_height_type HEIGHT    = _EndiannessUlt::load<height_type>(buf);
-                auto cb_lambda              = [=]<class HeapMaker>(HeapMaker *){HeapMaker::inplace_correct(fwd(buf));};    
+                height_type HEIGHT  = {};
+                dg::compact_serializer::core::deserialize(buf, HEIGHT);
+                auto cb_lambda      = [=]<class HeapMaker>(HeapMaker *){HeapMaker::inplace_correct(fwd(buf));};    
                 get_heap_maker(cb_lambda, HEIGHT);
             }
-
     };
 
     struct HeapResourceManipulator: HeapResourceBase{
 
         using _Base                     = HeapResourceBase;        
         using _ResourceInitializer      = HeapResourceInitializer;
-        using _EndiannessUlt            = memory::SyncedEndiannessService;
         using _Instantitor              = instantiator::IntervalDataInstantiator;
         using _Transferer               = instantiator::IntervalDataTransferer;
         using _MVCSpawner               = MVCSpawner;
 
         using height_type               = typename _Base::height_type;
-        using const_height_type         = typename _Base::const_height_type;
         
         struct TemporaryID{}; 
         struct TemporaryID2{};
-
-        //REVIEW: consider non-template approach - reduce binary, allow concurrency 
         
         template <class CallBack, class ID>
-        static constexpr void get_heap_mvc(const CallBack& cb_lambda, void * buf, const ID id){
+        static constexpr void get_heap_mvc(const CallBack& cb_lambda, char * buf, const ID id){
             
-            const_height_type HEIGHT    = _EndiannessUlt::load<height_type>(buf);
+            height_type HEIGHT  = {};
+            dg::compact_serializer::core::deserialize(buf, HEIGHT);
             constexpr auto DELTA        = limits::EXCL_MAX_HEAP_HEIGHT - limits::MIN_HEAP_HEIGHT;
             constexpr auto idx_seq      = std::make_index_sequence<DELTA>{};
 
@@ -6061,7 +5300,7 @@ namespace dg::heap::resource{
             }(idx_seq);
         }
 
-        static inline void defaultize(void * buf){ //REIVEW: noexcept
+        static inline void defaultize(char * buf){ //REIVEW: noexcept
             
             auto cb_handler             = []<class T, class T1, class T2>(const data::HeapData<T>, const data::StorageExtractible<T1>, const internal_core::HeapOperatable<T2> controller){
                 _Instantitor::initialize(controller);
@@ -6070,7 +5309,7 @@ namespace dg::heap::resource{
             get_heap_mvc(cb_handler, buf, TemporaryID{});
         }
         
-        static inline void transfer(void * transferee, void * transferer){ //REIVEW: noexcept
+        static inline void transfer(char * transferee, char * transferer){ //REIVEW: noexcept
 
             auto cb_handler                 = [=]<class T, class T1, class T2>(const data::HeapData<T>, const data::StorageExtractible<T1>, const internal_core::HeapOperatable<T2> transferee){
 
@@ -6083,7 +5322,6 @@ namespace dg::heap::resource{
 
             get_heap_mvc(cb_handler, transferee, TemporaryID{});
         }
-
     };
 
     struct ResourceController{
@@ -6104,11 +5342,10 @@ namespace dg::heap::resource{
             memory::MemoryMarket::reservoir = std::move(reservoir_ins);
         }
 
-        static void inplace_make(const uint8_t HEIGHT, void * buf){
+        static void inplace_make(const uint8_t HEIGHT, char * buf){
 
             _Initializer::inplace_init(buf, HEIGHT);
             _Manipulator::defaultize(buf);
-
         }
 
         static auto make(const uint8_t HEIGHT) -> std::shared_ptr<char[]>{
@@ -6119,23 +5356,23 @@ namespace dg::heap::resource{
             return rs;
         } 
 
-        static void inplace_correct(void * buf) noexcept{
+        static void inplace_correct(char * buf) noexcept{
 
             _Initializer::inplace_correct(buf);
         }
 
-        static void inplace_destruct(void * buf) noexcept{
+        static void inplace_destruct(char * buf) noexcept{
 
             _Initializer::inplace_destruct(buf);
         }
 
-        static void transfer(void * transferee, void * transferer){
+        static void transfer(char * transferee, char * transferer){
 
             _Manipulator::transfer(transferee, transferer);
         }
 
         template <class ID>
-        static auto get_allocatable(void * buf, const ID id) -> std::unique_ptr<core::Allocatable>{
+        static auto get_allocatable(char * buf, const ID id) -> std::unique_ptr<core::Allocatable>{
 
             std::unique_ptr<core::Allocatable> rs{};
             auto cb_handler = [&]<class T, class T1, class T2>(const data::HeapData<T> model, const data::StorageExtractible<T1> view, const internal_core::HeapOperatable<T2> controller){
@@ -6144,11 +5381,10 @@ namespace dg::heap::resource{
             _Manipulator::get_heap_mvc(cb_handler, buf, id);
 
             return rs;
-
         } 
 
         template <class ID>
-        static auto get_allocatable_x(void * buf, const ID id) -> std::unique_ptr<core::Allocatable_X>{
+        static auto get_allocatable_x(char * buf, const ID id) -> std::unique_ptr<core::Allocatable_X>{
 
             std::unique_ptr<core::Allocatable_X> rs{};
             auto cb_handler = [&]<class T, class T1, class T2>(const data::HeapData<T> model, const data::StorageExtractible<T1> view, const internal_core::HeapOperatable<T2> controller){
@@ -6158,9 +5394,7 @@ namespace dg::heap::resource{
             _Manipulator::get_heap_mvc(cb_handler, buf, id);
 
             return rs;
-
         }
-
     };
 
     template <class _Controller>
@@ -6229,7 +5463,6 @@ namespace dg::heap::resource{
             std::lock_guard<std::mutex> guard(mtx);
             return _Controller::get_allocatable_x(std::forward<Args>(args)...);
         }
-
     };
 
 };
@@ -6248,7 +5481,7 @@ namespace dg::heap::user_interface{
         _Controller::set_reservoir(std::move(buf), buf_sz);
     }
 
-    extern void inplace_make(const uint8_t HEIGHT, void * buf){
+    extern void inplace_make(const uint8_t HEIGHT, char * buf){
 
         return _Controller::inplace_make(HEIGHT, buf);
     }
@@ -6258,30 +5491,30 @@ namespace dg::heap::user_interface{
         return _Controller::make(HEIGHT);
     }
 
-    extern void inplace_correct(void * buf) noexcept{
+    extern void inplace_correct(char * buf) noexcept{
 
         return _Controller::inplace_correct(buf);
     }
 
-    extern void inplace_destruct(void * buf) noexcept{
+    extern void inplace_destruct(char * buf) noexcept{
 
         return _Controller::inplace_destruct(buf);
     }
 
-    extern void transfer(void * transferee, void * transferer){ 
+    extern void transfer(char * transferee, char * transferer){
 
         return _Controller::transfer(transferee, transferer);
     }
 
     //error - external linking
     template <class ID = std::integral_constant<size_t, 0>>
-    extern auto get_allocator(void * data, const ID& id = std::integral_constant<size_t, 0>{}) -> std::unique_ptr<core::Allocatable>{
+    extern auto get_allocator(char * data, const ID& id = std::integral_constant<size_t, 0>{}) -> std::unique_ptr<core::Allocatable>{
 
         return _Controller::get_allocatable(data, id);
     }
 
     template <class ID = std::integral_constant<size_t, 0>>
-    extern auto get_allocator_x(void * data, const ID& id = std::integral_constant<size_t, 0>{}) -> std::unique_ptr<core::Allocatable_X>{
+    extern auto get_allocator_x(char * data, const ID& id = std::integral_constant<size_t, 0>{}) -> std::unique_ptr<core::Allocatable_X>{
 
         return _Controller::get_allocatable_x(data, id);
     }

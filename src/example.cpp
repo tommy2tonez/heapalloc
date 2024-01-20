@@ -3,6 +3,7 @@
 #include <iostream>
 #include "assert.h"
 #include <random>
+#include <chrono>
 
 class BumpAllocator{ //REVIEW: very bad allocator (as placeholder for future reservoir implementation) 
 
@@ -90,19 +91,6 @@ class BumpAllocator{ //REVIEW: very bad allocator (as placeholder for future res
 
 using interval_type             = dg::heap::types::interval_type;
 
-// auto make_dealloc_wrapped(interval_type intv, BumpAllocator& b_allocator, dg::heap::core::Allocatable& allocator) -> std::shared_ptr<interval_type>{
-
-//     auto destructor = [&](interval_type * intv){
-//         b_allocator.unblock(intv->first, intv->second + 1);
-//         allocator.free(*intv);
-//         delete intv;
-//     };
-
-//     std::unique_ptr<interval_type, decltype(destructor)> ins{new interval_type(intv), destructor};
-//     return ins;
-
-// }
-
 void clear(std::vector<interval_type>& intvs, dg::heap::core::Allocatable& allocatable, BumpAllocator& ballocator){
 
     for (const auto& intv: intvs){
@@ -131,9 +119,36 @@ void random_clear(std::vector<interval_type>& intvs, dg::heap::core::Allocatable
     }
 }
 
+void dirtify(dg::heap::core::Allocatable& allocator){
+
+    std::vector<interval_type> intervals{};
+
+    while (true){
+        auto intv = allocator.alloc(5);
+        if (!intv){
+            break;
+        }
+        intervals.push_back(*intv);
+    }
+
+    auto rand_dev   = std::bind(std::uniform_int_distribution<size_t>{}, std::mt19937{});
+    auto rm_sz      = rand_dev() % intervals.size();
+
+    while (rm_sz > 0){
+        auto rm_idx = rand_dev() % intervals.size();
+        std::swap(intervals[rm_idx], intervals.back());
+        allocator.free(intervals.back());
+        intervals.pop_back();
+        --rm_sz;
+    } 
+
+}
+
 int main(){
 
-    constexpr size_t HEIGHT         = 11;
+    using namespace std::chrono;
+
+    constexpr size_t HEIGHT         = 12;
     constexpr size_t BASE_LENGTH    = size_t{1} << (HEIGHT - 1);
 
     std::vector<bool> bc{};
@@ -141,9 +156,10 @@ int main(){
     BumpAllocator b_allocator(std::move(bc), BASE_LENGTH);
 
     std::shared_ptr<char[]> buf = dg::heap::user_interface::make(HEIGHT);
+
+    // std::cout << l;
     std::shared_ptr<dg::heap::core::Allocatable> allocator  = dg::heap::user_interface::get_allocator_x(buf.get());
-    
-    auto random_device              = std::bind(std::uniform_int_distribution<size_t>{}, std::mt19937{});
+    auto random_device  = std::bind(std::uniform_int_distribution<size_t>{}, std::mt19937{});
     std::vector<interval_type> intvs{};
 
     while (true){

@@ -176,8 +176,9 @@ namespace dg::datastructure::boolvector::utility{
 
     template <class RS_Type = bucket_type>
     static inline constexpr auto false_toggle(size_t offset) -> RS_Type{
-
-        return std::numeric_limits<RS_Type>::max() ^ true_toggle<RS_Type>(offset); //REVIEW only unsigned
+        
+        static_assert(std::is_unsigned_v<RS_Type>);
+        return std::numeric_limits<RS_Type>::max() ^ true_toggle<RS_Type>(offset);
 
     }
 
@@ -190,15 +191,15 @@ namespace dg::datastructure::boolvector::utility{
         RS_Type rs{};
         constexpr auto seq = std::make_index_sequence<sizeof...(Args)>();
 
-        [&]<size_t ...IDX>(const std::index_sequence<IDX...>&){                
+        [=]<size_t ...IDX>(const std::index_sequence<IDX...>&, RS_Type& op){                
             (
-                [&](size_t){
+                [=](size_t, RS_Type& op){
 
-                    rs |= RS_Type{std::get<IDX>(tup)} << IDX; 
+                    op |= RS_Type{std::get<IDX>(tup)} << IDX; 
 
-                }(IDX), ...
+                }(IDX, op), ...
             );
-        }(seq);
+        }(seq, rs);
 
         return rs; 
 
@@ -209,7 +210,7 @@ namespace dg::datastructure::boolvector::utility{
 
         constexpr auto seq = std::make_index_sequence<BIT_LENGTH>();
 
-        auto lambda = [&]<size_t ...IDX>(const std::index_sequence<IDX...>&){            
+        auto lambda = [=]<size_t ...IDX>(const std::index_sequence<IDX...>&){            
             return std::make_tuple(narrow(value & bit_control<T>(IDX))...);
         };
 
@@ -221,7 +222,7 @@ namespace dg::datastructure::boolvector::utility{
 
         constexpr auto seq  = std::make_index_sequence<BIT_LENGTH>();
 
-        auto lambda = [&]<size_t ...IDX>(const std::index_sequence<IDX...>&) constexpr{
+        auto lambda = [=]<size_t ...IDX>(const std::index_sequence<IDX...>&) constexpr{
             return std::make_tuple(std::integral_constant<bool, narrow(Val & bit_control<ValType>(IDX))>()...);
         };
 
@@ -267,9 +268,9 @@ namespace dg::datastructure::boolvector::operation{
 
         constexpr auto seq = std::make_index_sequence<sizeof...(Args)>();
 
-        [&]<size_t ...IDX>(const std::index_sequence<IDX...>&){
-            (op.set(idx + IDX, utility::to_set_arg(std::get<IDX>(tup))), ...);
-        }(seq);
+        [idx]<size_t ...IDX>(const std::index_sequence<IDX...>&, const std::tuple<Args...>& inp, OperatableVector<T>& oop){
+            (oop.set(idx + IDX, utility::to_set_arg(std::get<IDX>(inp))), ...);
+        }(seq, tup, op);
 
     }
 
@@ -278,11 +279,11 @@ namespace dg::datastructure::boolvector::operation{
 
         constexpr auto seq = std::make_index_sequence<LENGTH>();
 
-        auto lambda = [&]<size_t ...IDX>(const std::index_sequence<IDX...>&){
-            return std::make_tuple(op.get(idx + IDX)...);
+        auto lambda = [idx]<size_t ...IDX>(const std::index_sequence<IDX...>&, ReadableVector<T>& oop){
+            return std::make_tuple(oop.get(idx + IDX)...);
         };
 
-        return lambda(seq);
+        return lambda(seq, op);
 
     }
     
